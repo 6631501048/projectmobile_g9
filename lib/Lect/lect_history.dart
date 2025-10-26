@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Lecthistory(), 
+      home: Lecthistory(),
     );
   }
 }
@@ -31,7 +31,7 @@ class Lecthistory extends StatelessWidget {
       'book': 'เรื่องเศร้าเล่มสีชมพู',
       'borrowDate': '10/10/2025',
       'returnDate': '17/10/2025',
-      'borrower': 'Kwan',
+      'borrower': 'Nat',
       'status': 'Rejected',
     },
   ];
@@ -59,7 +59,7 @@ class Lecthistory extends StatelessWidget {
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade400), // ✅ กรอบตาราง
+              border: TableBorder.all(color: Colors.grey.shade400),
               columnSpacing: 30,
               headingRowColor: WidgetStateColor.resolveWith(
                 (states) => const Color(0xFF8B1A1A),
@@ -70,9 +70,9 @@ class Lecthistory extends StatelessWidget {
               ),
               columns: const [
                 DataColumn(label: Text('Book')),
+                DataColumn(label: Text('Borrower')), // ✅ เพิ่มคอลัมน์ชื่อผู้ยืม
                 DataColumn(label: Text('Borrowing date')),
-                DataColumn(label: Text('date of return')),
-                DataColumn(label: Text('Borrower')),
+                DataColumn(label: Text('Date of return')),
                 DataColumn(label: Text('Approval Status')),
               ],
               rows: borrowHistory.map((item) {
@@ -88,9 +88,9 @@ class Lecthistory extends StatelessWidget {
                 return DataRow(
                   cells: [
                     DataCell(Text(item['book']!)),
+                    DataCell(Text(item['borrower']!)), // ✅ แสดงชื่อผู้ยืม
                     DataCell(Text(item['borrowDate']!)),
                     DataCell(Text(item['returnDate']!)),
-                    DataCell(Text(item['borrower']!)),
                     DataCell(
                       Text(
                         item['status']!,
