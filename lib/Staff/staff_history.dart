@@ -11,7 +11,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: StaffHistory(), 
+      home: StaffHistory(),
     );
   }
 }
@@ -25,14 +25,18 @@ class StaffHistory extends StatelessWidget {
       'borrowDate': '5/10/2025',
       'returnDate': '12/10/2025',
       'borrower': 'Kwan',
+      'status': 'Approve',
       'approver': 'Nataporn',
+      'receiver': 'Beam',
     },
     {
       'book': 'Fantasy',
       'borrowDate': '7/10/2025',
       'returnDate': '14/10/2025',
       'borrower': 'Mint',
+      'status': 'Reject',
       'approver': 'Fah',
+      'receiver': '', // ✅ จะถูกแทนที่ด้วย "-" ด้านล่าง
     },
   ];
 
@@ -43,50 +47,66 @@ class StaffHistory extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF8B1A1A),
         title: const Text(
-          'History/Staff',
+          'History',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
       ),
       body: Container(
-  color: Colors.white,
-  margin: const EdgeInsets.all(10),
-  child: SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: SingleChildScrollView( // ✅ เพิ่ม scroll แนวตั้งด้วย
-      scrollDirection: Axis.vertical,
-      child: DataTable(
-        columnSpacing: 30, // ✅ เพิ่มระยะห่างระหว่างคอลัมน์
-        headingRowColor: WidgetStateColor.resolveWith(
-          (states) => const Color(0xFF8B1A1A),
-        ),
-        headingTextStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-        columns: const [
-          DataColumn(label: Text('Book')),
-          DataColumn(label: Text('Borrowing date')),
-          DataColumn(label: Text('Date of return')),
-          DataColumn(label: Text('Borrower')),
-          DataColumn(label: Text('Approver')),
-        ],
-        rows: borrowHistory.map((item) {
-          return DataRow(
-            cells: [
-              DataCell(Text(item['book']!)),
-              DataCell(Text(item['borrowDate']!)),
-              DataCell(Text(item['returnDate']!)),
-              DataCell(Text(item['borrower']!)),
-              DataCell(Text(item['approver']!)),
-            ],
-          );
-        }).toList(),
-      ),
-    ),
-  ),
-),
+        color: Colors.white,
+        margin: const EdgeInsets.all(10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            child: DataTable(
+              columnSpacing: 30,
+              headingRowColor: WidgetStateColor.resolveWith(
+                (states) => const Color(0xFF8B1A1A),
+              ),
+              headingTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              columns: const [
+                DataColumn(label: Text('Book')),
+                DataColumn(label: Text('Borrowing date')),
+                DataColumn(label: Text('Date of return')),
+                DataColumn(label: Text('Borrower')),
+                DataColumn(label: Text('Status')), // ✅ เพิ่มคอลัมน์ Status
+                DataColumn(label: Text('Approver')),
+                DataColumn(label: Text('Receiver')),
+              ],
+              rows: borrowHistory.map((item) {
+                final status = item['status']!;
+                final receiver =
+                    status == 'Reject' ? '-' : (item['receiver'] ?? '-');
+                final statusColor = status == 'Approve'
+                    ? Colors.green
+                    : Colors.red; // ✅ สีสถานะ
 
+                return DataRow(
+                  cells: [
+                    DataCell(Text(item['book']!)),
+                    DataCell(Text(item['borrowDate']!)),
+                    DataCell(Text(item['returnDate']!)),
+                    DataCell(Text(item['borrower']!)),
+                    DataCell(Text(
+                      status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )),
+                    DataCell(Text(item['approver']!)),
+                    DataCell(Text(receiver)),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF8B1A1A),
         selectedItemColor: Colors.white,
