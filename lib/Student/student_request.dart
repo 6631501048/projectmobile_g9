@@ -1,31 +1,26 @@
 import 'package:flutter/material.dart';
+import 'studenthome.dart';
 
 class RequestPage extends StatefulWidget {
-  const RequestPage({super.key});
-
   @override
   State<RequestPage> createState() => _RequestPageState();
 }
 
 class _RequestPageState extends State<RequestPage> {
-  int selectedIndex = 0;
-  String title = "";
+  String title = "---- TITLE ----";
   String imagePath = "";
+  String status = 'PENDING';
 
   DateTime? fromDate = DateTime.now();
   DateTime? toDate = DateTime.now();
+
   bool showInfo = true;
   bool isConfirmed = false;
-  String from = '';
-  String to = '';
 
-  @override
   void initState() {
     super.initState();
     fromDate = DateTime.now();
     toDate = DateTime.now().add(const Duration(days: 1));
-    from = '${fromDate!.day}/${fromDate!.month}/${fromDate!.year}';
-    to = '${toDate!.day}/${toDate!.month}/${toDate!.year}';
   }
 
   @override
@@ -35,37 +30,74 @@ class _RequestPageState extends State<RequestPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 75),
+            padding: const EdgeInsets.only(top: 30),
             child: SizedBox(
               width: double.infinity,
-              height: 120,
+              height: 85,
               child: Stack(
                 alignment: Alignment.center,
                 children: showInfo
                     ? [
-                        _tabButton('Request Info', true, () {}),
-                        _tabButton('Status', false, () {
-                          setState(() {
-                            showInfo = false;
-                          });
-                        }),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 400),
+                          left: 185,
+                          top: 30,
+                          child: buildButton(
+                            text: 'Status',
+                            active: false,
+                            onPressed: () {
+                              setState(() {
+                                showInfo = false;
+                              });
+                            },
+                          ),
+                        ),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 300),
+                          left: 50,
+                          top: 0,
+                          child: buildButton(
+                            text: 'Request Info',
+                            active: true,
+                            onPressed: () {},
+                          ),
+                        ),
                       ]
                     : [
-                        _tabButton('Status', true, () {}),
-                        _tabButton('Request Info', false, () {
-                          setState(() {
-                            showInfo = true;
-                            isConfirmed = false;
-                          });
-                        }),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 400),
+                          left: 195,
+                          top: 30,
+                          child: buildButton(
+                            text: 'Request Info',
+                            active: false,
+                            onPressed: () {
+                              setState(() {
+                                isConfirmed = false;
+                                showInfo = true;
+                              });
+                            },
+                          ),
+                        ),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 300),
+                          left: 50,
+                          top: 0,
+                          child: buildButton(
+                            text: 'Status',
+                            active: true,
+                            onPressed: () {},
+                          ),
+                        ),
                       ],
               ),
             ),
           ),
+
           const SizedBox(height: 20),
           Expanded(
             child: SingleChildScrollView(
-              child: showInfo ? _buildRequestInfo() : _buildStatus(),
+              child: showInfo ? RequestInfo() : Status(),
             ),
           ),
         ],
@@ -73,46 +105,46 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  // ----------------------------------------------------------------
+  // ---------------------------------------------------------------//
 
-  Widget _tabButton(String text, bool active, VoidCallback onPressed) {
-    return Align(
-      alignment: active ? Alignment.topLeft : Alignment.bottomRight,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: active ? 180 : 140,
-        height: active ? 60 : 45,
-        margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-        decoration: BoxDecoration(
-          color: active ? const Color(0xFF6B1A1A) : Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: const Color(0xFF6B1A1A)),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [],
-        ),
-        child: TextButton(
-          onPressed: onPressed,
-          child: Text(
-            text,
-            style: TextStyle(
-              color: active ? Colors.white : const Color(0xFF6B1A1A),
-              fontWeight: FontWeight.bold,
-              fontSize: active ? 20 : 16,
-            ),
+  Widget buildButton({
+    required String text,
+    required bool active,
+    required VoidCallback onPressed,
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: active ? 170 : 110,
+      height: active ? 55 : 40,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF6B1A1A) : Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFF6B1A1A)),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : [],
+      ),
+      child: TextButton(
+        onPressed: onPressed,
+        child: Text(
+          text,
+          style: TextStyle(
+            color: active ? Colors.white : const Color(0xFF6B1A1A),
+            fontWeight: FontWeight.bold,
+            fontSize: active ? 18 : 12,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRequestInfo() {
+  Widget RequestInfo() {
     return Center(
       child: Container(
         width: 300,
@@ -124,7 +156,7 @@ class _RequestPageState extends State<RequestPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _redTitle(title),
+            Title(title),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -157,7 +189,7 @@ class _RequestPageState extends State<RequestPage> {
                         fontSize: 16,
                       ),
                     ),
-                    _dateBox(fromDate),
+                    date(date: fromDate),
                     const SizedBox(height: 10),
                     const Text(
                       'TO',
@@ -166,7 +198,7 @@ class _RequestPageState extends State<RequestPage> {
                         fontSize: 16,
                       ),
                     ),
-                    _dateBox(toDate),
+                    date(date: toDate),
                   ],
                 ),
               ],
@@ -175,7 +207,7 @@ class _RequestPageState extends State<RequestPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _button(
+                Button(
                   'CONFIRM',
                   Colors.green,
                   onPressed: () {
@@ -185,16 +217,15 @@ class _RequestPageState extends State<RequestPage> {
                     });
                   },
                 ),
-                _button(
+                Button(
                   'CANCEL',
                   Colors.red,
                   textColor: Colors.white,
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Cancelled!'),
-                        backgroundColor: Colors.red,
-                      ),
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => StudentHome()),
+                      (route) => false,
                     );
                   },
                 ),
@@ -206,11 +237,11 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _buildStatus() {
+  Widget Status() {
     if (!isConfirmed) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.only(top: 150),
+          padding: const EdgeInsets.only(top: 150),
           child: Text(
             'No booking yet',
             style: TextStyle(color: Colors.grey, fontSize: 18),
@@ -225,86 +256,168 @@ class _RequestPageState extends State<RequestPage> {
         children: [
           Container(
             width: 300,
+            height: 230,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               border: Border.all(color: Colors.black),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _redTitle(title),
-                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: imagePath.isNotEmpty
-                          ? Image.asset(
-                              imagePath,
-                              width: 110,
-                              height: 110,
-                              fit: BoxFit.cover,
-                            )
-                          : Container(
-                              width: 110,
-                              height: 110,
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 40,
-                              ),
-                            ),
+                    Column(
+                      children: [
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: imagePath.isNotEmpty
+                              ? Image.asset(
+                                  imagePath,
+                                  width: 110,
+                                  height: 110,
+                                  fit: BoxFit.cover,
+                                )
+                              : Container(
+                                  width: 110,
+                                  height: 110,
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.image_not_supported,
+                                    size: 40,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(height: 10),
+                        Title(title),
+                      ],
                     ),
                     Column(
                       children: [
-                        _dateBox(fromDate),
+                        date(date: fromDate),
                         const SizedBox(height: 10),
-                        _dateBox(toDate),
+                        date(date: toDate),
                         const SizedBox(height: 10),
-                        _statusBox('PENDING'),
+                        statusBox(status),
                       ],
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 20),
               ],
             ),
           ),
+
           Positioned(
             bottom: -20,
             left: 180,
-            child: _button(
+            child: Button(
               'CANCEL',
               Colors.red[800]!,
               textColor: Colors.white,
               onPressed: () {
-                setState(() {
-                  isConfirmed = false;
-                  showInfo = true;
-                });
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirm Cancellation'),
+                    content: const Text(
+                      'Are you sure you want to cancel?',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            isConfirmed = false;
+                            showInfo = true;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text(
+                          'Yes',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'No',
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
               },
             ),
           ),
           Positioned(
             bottom: -12,
             left: 20,
-            child: _button(
-              'RETURN',
-              Colors.black,
-              textColor: Colors.white,
-              onPressed: () {
-                setState(() {
-                  isConfirmed = false;
-                  showInfo = true;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Book returned successfully!'),
-                    backgroundColor: Colors.green,
+            child: SizedBox(
+              width: 100,
+              height: 30,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.black26),
                   ),
-                );
-              },
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Return Book'),
+                      content: const Text(
+                        'Do you want to return this book?',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              isConfirmed = false;
+                              showInfo = true;
+                            });
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Book returned successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Yes',
+                            style: TextStyle(color: Colors.green),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text(
+                            'No',
+                            style: TextStyle(color: Colors.black),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text(
+                  'RETURN',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                ),
+              ),
             ),
           ),
         ],
@@ -312,9 +425,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  // ----------------------------------------------------------------
-
-  Widget _dateBox(DateTime? date) {
+  Widget date({required DateTime? date}) {
     final d = date ?? DateTime.now();
     return Container(
       width: 130,
@@ -336,9 +447,9 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _redTitle(String text) {
+  Widget Title(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF8B0000),
         borderRadius: BorderRadius.circular(30),
@@ -348,13 +459,13 @@ class _RequestPageState extends State<RequestPage> {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
-          fontSize: 14,
+          fontSize: 12,
         ),
       ),
     );
   }
 
-  Widget _button(
+  Widget Button(
     String label,
     Color color, {
     Color textColor = Colors.white,
@@ -367,15 +478,15 @@ class _RequestPageState extends State<RequestPage> {
         foregroundColor: textColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Colors.black26),
+          side: BorderSide(color: Colors.black26),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       ),
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 
-  Widget _statusBox(String text) {
+  Widget statusBox(String text) {
     return Container(
       width: 130,
       padding: const EdgeInsets.all(8),
@@ -384,15 +495,20 @@ class _RequestPageState extends State<RequestPage> {
         border: Border.all(color: Colors.black),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.orange,
-            fontSize: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+                fontSize: 14,
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

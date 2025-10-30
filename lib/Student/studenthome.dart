@@ -79,7 +79,7 @@ class _BookStoreHomeState extends State<BookStoreHome> {
             return _HomeGrid(query: _query);
           } else if (currentRole == UserRole.student && i == 1) {
             // หน้า My Request
-            return const RequestPage();
+            return RequestPage();
           } else if (currentRole == UserRole.student && i == 2) {
             // หน้า History
             return const StudentHistory();
