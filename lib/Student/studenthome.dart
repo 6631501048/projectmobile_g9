@@ -441,22 +441,22 @@ class _PlaceholderPage extends StatelessWidget {
 final _sampleBooks = <Book>[
   Book(
     title: 'เรือนแรมสีแดง',
-    coverUrl: '',
+    coverUrl: 'assets/images/1.jpg',
     status: BookStatus.disable,
   ),
   Book(
     title: 'แปดขุนเขา',
-    coverUrl: '',
+    coverUrl: 'assets/images/2.jpg',
     status: BookStatus.borrow,
   ),
   Book(
     title: 'หนูน้อยหมวกแดงพบศพระหว่างเดินทาง',
-    coverUrl: '',
+    coverUrl: 'assets/images/redhood.jpg',
     status: BookStatus.available,
   ),
   Book(
     title: 'เพราะรักบานในทุ่งดอกไม้',
-    coverUrl: '',
+    coverUrl: 'assets/images/redhood.jpg',
     status: BookStatus.available,
   ),
 ];

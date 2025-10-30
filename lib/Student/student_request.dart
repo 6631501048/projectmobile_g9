@@ -40,7 +40,7 @@ class _RequestPageState extends State<RequestPage> {
                     ? [
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 400),
-                          left: 185,
+                          left: 255,
                           top: 30,
                           child: buildButton(
                             text: 'Status',
@@ -54,7 +54,7 @@ class _RequestPageState extends State<RequestPage> {
                         ),
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 300),
-                          left: 50,
+                          left: 120,
                           top: 0,
                           child: buildButton(
                             text: 'Request Info',
@@ -66,7 +66,7 @@ class _RequestPageState extends State<RequestPage> {
                     : [
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 400),
-                          left: 195,
+                          left: 255,
                           top: 30,
                           child: buildButton(
                             text: 'Request Info',
@@ -81,7 +81,7 @@ class _RequestPageState extends State<RequestPage> {
                         ),
                         AnimatedPositioned(
                           duration: const Duration(milliseconds: 300),
-                          left: 50,
+                          left: 110,
                           top: 0,
                           child: buildButton(
                             text: 'Status',
