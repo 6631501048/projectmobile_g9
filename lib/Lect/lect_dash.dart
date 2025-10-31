@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 void main() {
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: Lectdash(),
+    home: LectDash(),
   ));
 }
 
-class Lectdash extends StatelessWidget {
-  const Lectdash({super.key});
+class LectDash extends StatelessWidget {
+  const LectDash({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -16,11 +16,12 @@ class Lectdash extends StatelessWidget {
     int borrowed = 12;
     int available = 25;
     int disabled = 3;
+    int pending = 5; // เพิ่ม Pending
     int maxAssets = 30; // สำหรับ progress bar
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lectdash'),
+        title: const Text('Dashboard'),
         centerTitle: true,
         backgroundColor: const Color(0xFF8B1A1A),
       ),
@@ -50,67 +51,86 @@ class Lectdash extends StatelessWidget {
                           color: Colors.orange,
                           title: 'Disabled Assets',
                           count: disabled)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: StatusCard(
+                          color: Colors.blue,
+                          title: 'Pending Borrow',
+                          count: pending)),
                 ],
               ),
               const SizedBox(height: 24),
 
               // Dashboard Graph แบบง่าย
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.blueAccent),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 4,
-                          offset: Offset(2, 2))
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Assets Overview',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.blueAccent),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(2, 2))
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Assets Overview',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
 
-                      // Borrowed
-                      const Text('Borrowed'),
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(
-                        value: borrowed / maxAssets,
-                        color: Colors.red,
-                        backgroundColor: Colors.red.withOpacity(0.2),
-                        minHeight: 20,
-                      ),
-                      const SizedBox(height: 16),
+                        // Borrowed
+                        const Text('Borrowed'),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: borrowed / maxAssets,
+                          color: Colors.red,
+                          backgroundColor: Colors.red.withOpacity(0.2),
+                          minHeight: 20,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // Available
-                      const Text('Available'),
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(
-                        value: available / maxAssets,
-                        color: Colors.green,
-                        backgroundColor: Colors.green.withOpacity(0.2),
-                        minHeight: 20,
-                      ),
-                      const SizedBox(height: 16),
+                        // Available
+                        const Text('Available'),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: available / maxAssets,
+                          color: Colors.green,
+                          backgroundColor: Colors.green.withOpacity(0.2),
+                          minHeight: 20,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // Disabled
-                      const Text('Disabled'),
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(
-                        value: disabled / maxAssets,
-                        color: Colors.orange,
-                        backgroundColor: Colors.orange.withOpacity(0.2),
-                        minHeight: 20,
-                      ),
-                    ],
+                        // Disabled
+                        const Text('Disabled'),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: disabled / maxAssets,
+                          color: Colors.orange,
+                          backgroundColor: Colors.orange.withOpacity(0.2),
+                          minHeight: 20,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Pending
+                        const Text('Pending Borrow'),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: pending / maxAssets,
+                          color: Colors.blue,
+                          backgroundColor: Colors.blue.withOpacity(0.2),
+                          minHeight: 20,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -120,17 +140,19 @@ class Lectdash extends StatelessWidget {
       ),
 
       // BottomNavigationBar
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFF8B1A1A),
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'Approve'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+     bottomNavigationBar: BottomNavigationBar(
+  backgroundColor: const Color(0xFF8B1A1A),
+  selectedItemColor: Colors.white,
+  unselectedItemColor: Colors.white70,
+  type: BottomNavigationBarType.fixed,
+  selectedLabelStyle: const TextStyle(fontSize: 12), // ปรับขนาด label
+  unselectedLabelStyle: const TextStyle(fontSize: 12),
+  items: const [
+    BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+    BottomNavigationBarItem(icon: Icon(Icons.add), label: 'Approve'),
+    BottomNavigationBarItem( icon: Icon(Icons.bar_chart), label: 'Dashboard'),
+    BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+    BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
