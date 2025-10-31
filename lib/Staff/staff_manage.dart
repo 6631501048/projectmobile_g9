@@ -498,37 +498,7 @@ class _StaffManageState extends State<StaffManage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text(
-                                'Category :',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 10,
-                                children: [
-                                  FilterChip(
-                                    label: const Text('Education'),
-                                    onSelected: (_) {},
-                                  ),
-                                  FilterChip(
-                                    label: const Text('Literature'),
-                                    onSelected: (_) {},
-                                  ),
-                                  FilterChip(
-                                    label: const Text('Art & Design'),
-                                    onSelected: (_) {},
-                                  ),
-                                  FilterChip(
-                                    label: const Text('Comic'),
-                                    onSelected: (_) {},
-                                  ),
-                                ],
-                              ),
                               const SizedBox(height: 16),
-                              const Divider(),
                               const Text(
                                 'Status :',
                                 style: TextStyle(
@@ -546,6 +516,10 @@ class _StaffManageState extends State<StaffManage> {
                                   ),
                                   FilterChip(
                                     label: const Text('Borrowed'),
+                                    onSelected: (_) {},
+                                  ),
+                                  FilterChip(
+                                    label: const Text('Pending Approve'),
                                     onSelected: (_) {},
                                   ),
                                   FilterChip(
@@ -591,7 +565,6 @@ class _StaffManageState extends State<StaffManage> {
                 ),
               ),
 
-            // 🔹 Edit Book Popup
             // 🔹 Edit Book Popup
             if (showEditBook)
               Positioned.fill(
@@ -669,31 +642,25 @@ class _StaffManageState extends State<StaffManage> {
                               const SizedBox(height: 16),
 
                               // 🔸 Book info
-                              Text.rich(
-                                TextSpan(
-                                  children: [
-                                    const TextSpan(
-                                      text: 'Title : ',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    TextSpan(text: titleController.text),
-                                  ],
+                              TextField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Title',
+                                  border: UnderlineInputBorder(),
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Text.rich(
-                                TextSpan(
-                                  children: [
-                                    const TextSpan(
-                                      text: 'Author : ',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    TextSpan(text: authorController.text),
-                                  ],
+
+                              TextField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Author',
+                                  border: UnderlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Amount',
+                                  border: UnderlineInputBorder(),
                                 ),
                               ),
 
@@ -922,6 +889,13 @@ class _StaffManageState extends State<StaffManage> {
                               TextField(
                                 decoration: const InputDecoration(
                                   labelText: 'Author',
+                                  border: UnderlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 6,),
+                              TextField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Amount',
                                   border: UnderlineInputBorder(),
                                 ),
                               ),
