@@ -16,6 +16,7 @@ class StaffDash extends StatelessWidget {
     int borrowed = 12;
     int available = 25;
     int disabled = 3;
+    int pending = 5; // เพิ่ม Pending
     int maxAssets = 30; // สำหรับ progress bar
 
     return Scaffold(
@@ -50,6 +51,12 @@ class StaffDash extends StatelessWidget {
                           color: Colors.orange,
                           title: 'Disabled Assets',
                           count: disabled)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: StatusCard(
+                          color: Colors.blue,
+                          title: 'Pending Borrow',
+                          count: pending)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -109,6 +116,17 @@ class StaffDash extends StatelessWidget {
                           value: disabled / maxAssets,
                           color: Colors.orange,
                           backgroundColor: Colors.orange.withOpacity(0.2),
+                          minHeight: 20,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Pending
+                        const Text('Pending Borrow'),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: pending / maxAssets,
+                          color: Colors.blue,
+                          backgroundColor: Colors.blue.withOpacity(0.2),
                           minHeight: 20,
                         ),
                       ],
