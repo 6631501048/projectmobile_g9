@@ -23,70 +23,98 @@ class StudentHistory extends StatelessWidget {
     }
   }
 
+  final List<Map<String, String>> historyData = const [
+    {
+      'book': 'เรือนแสงสีแดง',
+      'borrowDate': '5/10/2025',
+      'returnDate': '12/10/2025',
+      'approver': '-',
+      'receiver': '-',
+      'status': 'Pending',
+      'image': 'assets/images/Picture/1.jpg'
+    },
+    {
+      'book': 'Ready Player One',
+      'borrowDate': '7/10/2025',
+      'returnDate': '14/10/2025',
+      'approver': 'Ms. Emily Johnson',
+      'receiver': 'Mr. David Wong',
+      'status': 'Approved',
+      'image': 'assets/images/Picture/ready.jpg'
+    },
+    {
+      'book': 'แปดขุนเขา',
+      'borrowDate': '10/10/2025',
+      'returnDate': '17/10/2025',
+      'approver': '-',
+      'receiver': '-',
+      'status': 'Rejected',
+      'image': 'assets/images/Picture/2.jpg'
+    },
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: const Color(0xFF8B1A1A),
         title: const Text(
           'History',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 22,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
         ),
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {},
-        ),
       ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: historyData.length,
+        itemBuilder: (context, index) {
+          final item = historyData[index];
+          final statusColor = _getStatusColor(item['status']!);
 
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blueAccent, width: 2),
-                  ),
-                  child: DataTable(
-                    columnSpacing: 25,
-                    headingRowColor: MaterialStateProperty.all(const Color(0xFF8B1A1A)),
-                    headingTextStyle: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item['book']!,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 18)),
+                        const SizedBox(height: 6),
+                        Text('Borrow: ${item['borrowDate']}'),
+                        Text('Return: ${item['returnDate']}'),
+                        Text('Approver: ${item['approver']}'),
+                        Text('Receiver: ${item['receiver']}'),
+                        const SizedBox(height: 6),
+                        Text(
+                          item['status']!,
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, color: statusColor),
+                        ),
+                      ],
                     ),
-                    columns: const [
-                      DataColumn(label: Text('Book')),
-                      DataColumn(label: Text('Borrowing date')),
-                      DataColumn(label: Text('Date of return')),
-                      DataColumn(label: Text('Approver')),
-                      DataColumn(label: Text('Receiver')),
-                      DataColumn(label: Text('Status')),
-                    ],
-                    rows: [
-                      _buildRow('Horror', '5/10/2025', '12/10/2025', 'Pending', this),
-                      _buildRow('Fantasy', '7/10/2025', '14/10/2025', 'Approved', this),
-                      _buildRow('Romance', '10/10/2025', '17/10/2025', 'Rejected', this),
-                    ],
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      item['image']!,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
-
       bottomNavigationBar: SafeArea(
         child: BottomAppBar(
           color: const Color(0xFF8B1A1A),
@@ -107,57 +135,6 @@ class StudentHistory extends StatelessWidget {
       ),
     );
   }
-
-  // ฟังก์ชันสร้างแถวของ DataTable พร้อมจัดการเครื่องหมายและสีสถานะ
-  static DataRow _buildRow(
-      String book, String borrowDate, String returnDate, String status, StudentHistory state) {
-    final approver =
-        (status == 'Approved') ? _getApproverName(book) : '-';
-    final receiver =
-        (status == 'Approved') ? _getReceiverName(book) : '-';
-    final color = state._getStatusColor(status);
-
-    return DataRow(cells: [
-      DataCell(Text(book)),
-      DataCell(Text(borrowDate)),
-      DataCell(Text(returnDate)),
-      DataCell(Text(approver)),
-      DataCell(Text(receiver)),
-      DataCell(Text(
-        status,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: color,
-        ),
-      )),
-    ]);
-  }
-
-  static String _getApproverName(String book) {
-    switch (book) {
-      case 'Horror':
-        return 'Mr. John Smith';
-      case 'Fantasy':
-        return 'Ms. Emily Johnson';
-      case 'Romance':
-        return 'Mr. Robert Brown';
-      default:
-        return '-';
-    }
-  }
-
-  static String _getReceiverName(String book) {
-    switch (book) {
-      case 'Horror':
-        return 'Ms. Anna Lee';
-      case 'Fantasy':
-        return 'Mr. David Wong';
-      case 'Romance':
-        return 'Ms. Sarah Kim';
-      default:
-        return '-';
-    }
-  }
 }
 
 class NavItem extends StatelessWidget {
@@ -173,10 +150,7 @@ class NavItem extends StatelessWidget {
       children: [
         Icon(icon, color: Colors.white, size: 26),
         const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white, fontSize: 11),
-        ),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
       ],
     );
   }
