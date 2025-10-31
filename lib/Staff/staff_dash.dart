@@ -21,7 +21,7 @@ class StaffDash extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('StaffDash'),
+        title: const Text('Dashboard'),
         centerTitle: true,
         backgroundColor: const Color(0xFF8B1A1A),
       ),
