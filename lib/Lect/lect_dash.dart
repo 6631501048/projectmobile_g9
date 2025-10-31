@@ -16,8 +16,8 @@ class LectDash extends StatelessWidget {
     int borrowed = 12;
     int available = 25;
     int disabled = 3;
-    int pending = 5; // เพิ่ม Pending
-    int maxAssets = 30; // สำหรับ progress bar
+    int pending = 5; 
+    int maxAssets = 30; 
 
     return Scaffold(
       appBar: AppBar(
