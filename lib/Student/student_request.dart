@@ -1,22 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:projectmobile_g9/home.dart';
 
 class RequestPage extends StatefulWidget {
-  final String title;
-  final String imagePath;
-
-  const RequestPage({
-    super.key,
-    required this.title,
-    required this.imagePath,
-  });
-
   @override
   State<RequestPage> createState() => _RequestPageState();
+  // final String title;
+  // final String imagePath;
+  // const RequestPage({super.key, required this.title, required this.imagePath});
 }
 
 class _RequestPageState extends State<RequestPage> {
   int selectedIndex = 0;
-
+  String title = "เรือนแรมสีแดง";
+  String imagePath = "https://cdn-local.mebmarket.com/meb/server1/155239/Thumbnail/book_detail_large.gif?2";
   DateTime? fromDate = DateTime.now();
   DateTime? toDate = DateTime.now();
   bool showInfo = true;
@@ -39,10 +35,10 @@ class _RequestPageState extends State<RequestPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 80),
+            padding: const EdgeInsets.only(top: 75),
             child: SizedBox(
               width: double.infinity,
-              height: 100,
+              height: 120,
               child: Stack(
                 alignment: Alignment.center,
                 children: showInfo
@@ -51,7 +47,7 @@ class _RequestPageState extends State<RequestPage> {
                           duration: const Duration(milliseconds: 300),
                           left: 200,
                           top: 30,
-                          child: _buildButton(
+                          child: buildButton(
                             text: 'Status',
                             active: false,
                             onPressed: () {
@@ -65,7 +61,7 @@ class _RequestPageState extends State<RequestPage> {
                           duration: const Duration(milliseconds: 300),
                           left: 50,
                           top: 0,
-                          child: _buildButton(
+                          child: buildButton(
                             text: 'Request Info',
                             active: true,
                             onPressed: () {},
@@ -77,7 +73,7 @@ class _RequestPageState extends State<RequestPage> {
                           duration: const Duration(milliseconds: 300),
                           left: 210,
                           top: 30,
-                          child: _buildButton(
+                          child: buildButton(
                             text: 'Request Info',
                             active: false,
                             onPressed: () {
@@ -92,7 +88,7 @@ class _RequestPageState extends State<RequestPage> {
                           duration: const Duration(milliseconds: 300),
                           left: 50,
                           top: 0,
-                          child: _buildButton(
+                          child: buildButton(
                             text: 'Status',
                             active: true,
                             onPressed: () {},
@@ -106,7 +102,7 @@ class _RequestPageState extends State<RequestPage> {
           const SizedBox(height: 20),
           Expanded(
             child: SingleChildScrollView(
-              child: showInfo ? _buildRequestInfo() : _buildStatus(),
+              child: showInfo ? RequestInfo() : Status(),
             ),
           ),
         ],
@@ -114,7 +110,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _buildButton({
+  Widget buildButton({
     required String text,
     required bool active,
     required VoidCallback onPressed,
@@ -151,7 +147,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _topButton(String title, int index) {
+  Widget topButton(String title, int index) {
     final bool isActive = selectedIndex == index;
 
     return GestureDetector(
@@ -188,7 +184,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _buildRequestInfo() {
+  Widget RequestInfo() {
     return Center(
       child: Container(
         width: 300,
@@ -200,17 +196,18 @@ class _RequestPageState extends State<RequestPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _redTitle(widget.title),
+            Title(title),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    widget.imagePath,
+                  child: Image.network(
+                    imagePath,
+                    // widget.imagePath,
                     width: 110,
-                    height: 110,
+                    height: 150,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -220,19 +217,19 @@ class _RequestPageState extends State<RequestPage> {
                       'FROM',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 20,
+                        fontSize: 16,
                       ),
                     ),
-                    _dateBox(date: fromDate),
+                    date(date: fromDate),
                     const SizedBox(height: 10),
                     const Text(
                       'TO',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 20,
+                        fontSize: 16,
                       ),
                     ),
-                    _dateBox(date: toDate),
+                    date(date: toDate),
                   ],
                 ),
               ],
@@ -241,7 +238,7 @@ class _RequestPageState extends State<RequestPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _actionButton(
+                Button(
                   'CONFIRM',
                   Colors.green,
                   onPressed: () {
@@ -251,12 +248,16 @@ class _RequestPageState extends State<RequestPage> {
                     });
                   },
                 ),
-                _actionButton(
+                Button(
                   'CANCEL',
                   Colors.red,
                   textColor: Colors.white,
                   onPressed: () {
-                    Navigator.of(context).pop();
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => BookStoreApp()),
+                      (route) => false,
+                    );
                   },
                 ),
               ],
@@ -267,7 +268,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _buildStatus() {
+  Widget Status() {
     if (!isConfirmed) {
       return Center(
         child: Padding(
@@ -279,6 +280,7 @@ class _RequestPageState extends State<RequestPage> {
         ),
       );
     }
+
     return Center(
       child: Stack(
         clipBehavior: Clip.none,
@@ -293,45 +295,46 @@ class _RequestPageState extends State<RequestPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _redTitle(widget.title),
-                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        widget.imagePath,
-                        width: 110,
-                        height: 110,
-                        fit: BoxFit.cover,
-                      ),
+                    Column(
+                      children: [
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            imagePath,
+                            width: 110,
+                            height: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Title(title),
+                      ],
                     ),
                     Column(
                       children: [
-                        _dateBox(date: fromDate),
+                        date(date: fromDate),
                         const SizedBox(height: 10),
-                        _dateBox(date: toDate),
+                        date(date: toDate),
                         const SizedBox(height: 10),
-                        _statusBox('PENDING'),
+                        statusBox('PENDING'),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  '** Pending staff approval',
-                  style: TextStyle(color: Colors.red, fontSize: 11),
-                ),
-                const SizedBox(height: 32),
+
+                const SizedBox(height: 20),
               ],
             ),
           ),
 
           Positioned(
             bottom: -20,
-            left: 190,
-            child: _actionButton(
+            left: 180,
+            child: Button(
               'CANCEL',
               Colors.red[800]!,
               textColor: Colors.white,
@@ -346,13 +349,6 @@ class _RequestPageState extends State<RequestPage> {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'No',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                      ),
-                      TextButton(
                         onPressed: () {
                           setState(() {
                             isConfirmed = false;
@@ -365,10 +361,83 @@ class _RequestPageState extends State<RequestPage> {
                           style: TextStyle(color: Colors.red),
                         ),
                       ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'No',
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
                     ],
                   ),
                 );
               },
+            ),
+          ),
+          Positioned(
+            bottom: -12,
+            left: 20,
+            child: SizedBox(
+              width: 100,
+              height: 30,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.black26),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Return Book'),
+                      content: const Text(
+                        'Do you want to return this book?',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              isConfirmed = false;
+                              showInfo = true;
+                            });
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Book returned successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Yes',
+                            style: TextStyle(color: Colors.green),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text(
+                            'No',
+                            style: TextStyle(color: Colors.black),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text(
+                  'RETURN BOOK',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                ),
+              ),
             ),
           ),
         ],
@@ -376,7 +445,9 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _dateBox({required DateTime? date}) {
+
+
+  Widget date({required DateTime? date}) {
     final d = date ?? DateTime.now();
     return Container(
       width: 130,
@@ -398,24 +469,25 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _redTitle(String text) {
+  Widget Title(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF8B0000),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(30),
       ),
       child: Text(
         text,
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
+          fontSize: 12,
         ),
       ),
     );
   }
 
-  Widget _actionButton(
+  Widget Button(
     String label,
     Color color, {
     Color textColor = Colors.white,
@@ -436,7 +508,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget _statusBox(String text) {
+  Widget statusBox(String text) {
     return Container(
       width: 130,
       padding: const EdgeInsets.all(8),
