@@ -44,7 +44,7 @@ class _StudentProfileState extends State<StudentProfile> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const LoginPage(),
+                    builder: (context) =>  LoginPage(),
                   ), // ✅ ไปหน้า Login
                 );
               },

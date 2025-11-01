@@ -44,7 +44,7 @@ class _LectProfileState extends State<LectProfile> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const LoginPage(),
+                    builder: (context) => LoginPage(),
                   ),
                 );
               },

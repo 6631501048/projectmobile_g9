@@ -1,9 +1,85 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'Register.dart';
 import 'package:projectmobile_g9/Student/studenthome.dart';
+import 'package:projectmobile_g9/Staff/staffhome.dart';
+import 'package:projectmobile_g9/lect/lec.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+  bool _obscure = true;
+  bool isLoading = false;
+
+  // 🔹 ฟังก์ชันเรียก API /login
+  Future<void> loginUser() async {
+    if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both username and password')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final url = Uri.parse('http://192.168.49.1/login'); // สำหรับ Emulator
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': usernameController.text.trim(),
+          'password': passwordController.text.trim(),
+        }),
+      );
+
+      setState(() => isLoading = false);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final role = data['role'];
+        final username = data['username'];
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Welcome, $username!')),
+        );
+
+        if (role == 1) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const StaffBookStoreApp()),
+          );
+        } else if (role == 2) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LectHome()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const StudentHome()),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid username or password')),
+        );
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +109,7 @@ class LoginPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // ช่อง Email
+                // ช่อง Username
                 Container(
                   width: 280,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -49,10 +125,11 @@ class LoginPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: const TextField(
-                    decoration: InputDecoration(
+                  child: TextField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'Email address',
+                      hintText: 'Username',
                     ),
                   ),
                 ),
@@ -75,12 +152,20 @@ class LoginPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: const TextField(
-                    obscureText: true,
+                  child: TextField(
+                    controller: passwordController,
+                    obscureText: _obscure,
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Password',
-                      suffixIcon: Icon(Icons.visibility),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
                     ),
                   ),
                 ),
@@ -100,23 +185,17 @@ class LoginPage extends StatelessWidget {
                     ),
                     elevation: 8,
                   ),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const StudentHome(),
-                      ),
-                    );
-                  },
-
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  onPressed: isLoading ? null : loginUser,
+                  child: isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
 
                 const SizedBox(height: 15),
