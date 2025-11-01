@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://192.168.49.1/login'); // สำหรับ Emulator
+      final url = Uri.parse('http://10.10.1.5/login'); // สำหรับ Emulator
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

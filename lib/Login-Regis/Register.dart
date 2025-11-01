@@ -36,7 +36,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://192.168.49.1/register'); // สำหรับ Emulator (เปลี่ยนได้)
+      final url = Uri.parse('http://10.10.1.5/register'); // สำหรับ Emulator (เปลี่ยนได้)
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
