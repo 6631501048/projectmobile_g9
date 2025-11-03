@@ -1,30 +1,32 @@
-import express from "express";
-import mysql from "mysql2";
-import cors from "cors";
-import bodyParser from "body-parser";
+// server.js
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const mysql = require('mysql2');
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.json());
 
-// ✅ เชื่อมต่อ MySQL
+// === DB POOL (แก้ database ให้ตรงของมึง) ===
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "bookrent_db"
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'bookrent_db',
 });
 
 db.connect((err) => {
   if (err) {
-    console.error("Database connection failed:", err);
+    console.error('❌ Database connection failed:', err);
   } else {
-    console.log("✅ Connected to MySQL bookrent_db");
+    console.log('✅ Connected to MySQL database');
   }
 });
 
-// 🔹 API: Register (เฉพาะ Student)
-// 🔹 API: Register (เฉพาะ Student)
+
+// 🔹 API: Register
 app.post("/register", (req, res) => {
   const { username, email, password } = req.body;
 
@@ -32,7 +34,7 @@ app.post("/register", (req, res) => {
     return res.status(400).json({ message: "All fields are required" });
   }
 
-  // ตรวจ username หรือ email ซ้ำ
+
   const checkUser = "SELECT * FROM users WHERE username = ? OR email = ?";
   db.query(checkUser, [username, email], (err, result) => {
     if (err) return res.status(500).json({ message: "Database error" });
@@ -40,7 +42,6 @@ app.post("/register", (req, res) => {
       return res.status(400).json({ message: "Username or email already exists" });
     }
 
-    // ✅ Insert ปลอดภัย
     const insertUser =
       "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, 'student')";
     db.query(insertUser, [username, email, password], (err2) => {
@@ -73,11 +74,53 @@ app.post("/login", (req, res) => {
     res.json({
       id: user.id,
       username: user.username,
+      email: user.email,
       role: user.role,
     });
   });
 });
 
+// ---------------- BOOKS (สำคัญ) ----------------
+app.get('/books', (req, res) => {
+  const sql = `
+    SELECT 
+      id, 
+      title, 
+      author, 
+      category, 
+      description, 
+      image, 
+      STATUS AS status 
+    FROM books
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Error fetching books:', err);
+      return res.status(500).json({ message: 'Error fetching books' });
+    }
+    res.json(results);
+  });
+});
+
+// 🌐 Example: Borrow
+app.post('/borrow', (req, res) => {
+  const { userId, bookId } = req.body;
+  if (!userId || !bookId) {
+    return res.status(400).json({ message: 'Missing fields' });
+  }
+
+  // ✅ ใช้ชื่อ table ที่ถูกต้อง
+  const sql = 'INSERT INTO borrowings (user_id, book_id) VALUES (?, ?)';
+
+  db.query(sql, [userId, bookId], (err, result) => {
+    if (err) {
+      console.error('Error inserting borrow:', err);
+      return res.status(500).json({ message: 'Borrow failed', error: err });
+    }
+    res.json({ message: 'Borrow success' });
+  });
+});
 app.listen(3000, () => {
   console.log("🚀 Server running on port 3000");
 });

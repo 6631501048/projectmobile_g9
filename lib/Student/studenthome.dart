@@ -1,8 +1,20 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+// ====== หน้าต่าง ๆ เดิมของมึง ถ้ามีให้ import ตามนี้ ======
 import 'studenthistory.dart';
 import 'student_request.dart';
 import 'studentprofile.dart';
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
+
+// ================== CONFIG ==================
+// Emulator Android ใช้ 10.0.2.2
+// ถ้าเป็นมือถือจริงใน LAN ให้เปลี่ยนเป็น IP คอม เช่น 'http://192.168.1.50:3000'
+const String baseUrl = 'http://192.168.49.1:3000';
+const int kDemoUserId = 9; // ให้ตรงกับ users.id ใน DB
+
+// ============================================
 
 void main() {
   runApp(const StudentHome());
@@ -37,9 +49,10 @@ class BookStoreHome extends StatefulWidget {
 }
 
 class _BookStoreHomeState extends State<BookStoreHome> {
+  
   // ตั้งค่าเริ่มเป็นนักศึกษา ตามภาพที่ให้มา
   UserRole currentRole = UserRole.student;
-
+ 
   int _currentIndex = 0;
   String _query = '';
 
@@ -75,7 +88,7 @@ class _BookStoreHomeState extends State<BookStoreHome> {
         index: _currentIndex,
         children: List.generate(pages.length, (i) {
           if (i == 0) {
-            // หน้า Home
+            // หน้า Home → ดึงจาก API จริง
             return _HomeGrid(query: _query);
           } else if (currentRole == UserRole.student && i == 1) {
             // หน้า My Request
@@ -203,120 +216,270 @@ class _CurvedBottomBar extends StatelessWidget {
   }
 }
 
-//
-// --------------------------- Home: Banner + Grid ---------------------------
-//
-class _HomeGrid extends StatelessWidget {
+/// ====================== API CLIENT ======================
+class ApiClient {
+  static Future<List<dynamic>> fetchBooks() async {
+    final r = await http.get(Uri.parse('$baseUrl/books'));
+    if (r.statusCode != 200) {
+      throw Exception('Fetch books failed: ${r.statusCode} ${r.body}');
+    }
+    return jsonDecode(r.body) as List<dynamic>;
+  }
+
+  static Future<void> borrow({required int userId, required int bookId}) async {
+    final r = await http.post(
+      Uri.parse('$baseUrl/borrow'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'userId': userId, 'bookId': bookId}),
+    );
+    if (r.statusCode != 200) {
+      throw Exception('Borrow failed: ${r.body}');
+    }
+  }
+}
+
+/// ===================== HOME GRID (API จริง) =====================
+class _HomeGrid extends StatefulWidget {
   final String query;
   const _HomeGrid({required this.query});
 
   @override
-  Widget build(BuildContext context) {
-    final books = _sampleBooks
-        .where(
-          (b) => b.title.toLowerCase().contains(query.toLowerCase().trim()),
-        )
-        .toList();
+  State<_HomeGrid> createState() => _HomeGridState();
+}
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Column(
-            children: [
-              AspectRatio(
-                aspectRatio: 16 / 7,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.black12,
-                  ),
-                  child: Image.network(
-                    'https://picsum.photos/seed/bookstore-banner/1200/520',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 18,
-              crossAxisSpacing: 18,
-              childAspectRatio: 0.68,
-            ),
-            itemCount: books.length,
-            itemBuilder: (context, i) => _BookCard(book: books[i]),
-          ),
-        ),
-      ],
-    );
+class _HomeGridState extends State<_HomeGrid> {
+  late Future<List<dynamic>> _booksFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _booksFuture = ApiClient.fetchBooks();
   }
-}
 
-//
-// ----------------------------- Book Card -----------------------------
-//
-enum BookStatus { available, borrow, disable, pendingReturn }
-
-class Book {
-  final String title;
-  final String coverUrl; // asset path
-  final BookStatus status;
-
-  Book({required this.title, required this.coverUrl, required this.status});
-}
-
-class _BookCard extends StatelessWidget {
-  final Book book;
-  const _BookCard({required this.book});
+  Future<void> _refresh() async {
+    setState(() {
+      _booksFuture = ApiClient.fetchBooks();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (book.status) {
-      BookStatus.available => 'Status : Available',
-      BookStatus.borrow => 'Status : Borrow',
-      BookStatus.disable => 'Status : Disable',
-      BookStatus.pendingReturn => 'Status : Pending Return',
-    };
-
-    final color = switch (book.status) {
-      BookStatus.available => Colors.green,
-      BookStatus.borrow => Colors.orange,
-      BookStatus.disable => Colors.grey,
-      BookStatus.pendingReturn => Colors.blueGrey,
-    };
-
-    return Material(
-      color: Colors.white,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(book.title),
-              content: Text(label),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('OK'),
-                ),
+    return FutureBuilder<List<dynamic>>(
+      future: _booksFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              children: const [
+                SizedBox(height: 200),
+                Center(child: Text('ไม่มีหนังสือในระบบ')),
               ],
             ),
           );
-        },
+        }
+
+        final books = snapshot.data!
+    .where((b) => _readS(b, ['title', 'TITLE'])
+        .toLowerCase()
+        .contains(widget.query.toLowerCase().trim()))
+    .toList();
+
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 16 / 7,
+                      child: Container(
+                        margin: const EdgeInsets.all(12),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.black12,
+                        ),
+                        child: Image.asset(
+                          'assets/images/1.jpg',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                sliver: SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 18,
+                    crossAxisSpacing: 18,
+                    childAspectRatio: 0.68,
+                  ),
+                  itemCount: books.length,
+                  itemBuilder: (context, i) =>
+                      _BookCardFromJson(book: books[i], onChanged: _refresh),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+/// 🔹 ฟังก์ชันช่วยโหลดภาพ (รองรับทั้ง URL, assets, และชื่อไฟล์ตรง)
+ImageProvider _bookImage(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty) {
+    return const AssetImage('assets/images/ready.jpg'); // placeholder
+  }
+  if (s.startsWith('http')) return NetworkImage(s);
+  if (s.startsWith('assets/')) return AssetImage(s);
+  return AssetImage('assets/images/$s'); // เช่น "1.jpg", "redhood.jpg"
+}
+/// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
+/// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
+/// 
+String _readS(Map<String, dynamic> m, List<String> keys, {String fallback = ''}) {
+  for (final k in keys) {
+    final v = m[k];
+    if (v != null) return v.toString(); // ✅ เพิ่ม ; ตรงนี้
+  }
+  return fallback;
+}
+
+int _readI(Map<String, dynamic> m, List<String> keys, {int fallback = 0}) {
+  
+  for (final k in keys) {
+    final v = m[k];
+    if (v is int) return v;
+    if (v is String) {
+      final n = int.tryParse(v);
+      if (n != null) return n;
+    }
+  }
+  return fallback;
+}
+
+/// =================== BOOK CARD (จาก JSON API) ===================
+class _BookCardFromJson extends StatelessWidget {
+  final Map<String, dynamic> book;
+  final Future<void> Function() onChanged;
+  const _BookCardFromJson({required this.book, required this.onChanged});
+
+  Color _statusColor(String s) {
+    switch (s.toLowerCase()) {
+      case 'available':
+        return Colors.green;
+      case 'borrowed':
+        return Colors.orange;
+      case 'disabled':
+      case 'disable':
+        return Colors.grey;
+      case 'pending':
+      default:
+        return Colors.blueGrey;
+    }
+  }
+ 
+  @override
+  Widget build(BuildContext context) {
+    
+  final int id             = _readI(book, ['id', 'ID']);
+  final String title       = _readS(book, ['title', 'TITLE']);
+  final String image       = _readS(book, ['image', 'IMAGE']);
+  final String status      = _readS(book, ['status', 'STATUS']);
+  final String description = _readS(book, [ 'description','DESCRIPTION','desc','Desc','DESC']);
+  final Color color        = _statusColor(status);
+
+  return Material(
+    color: Colors.white,
+    elevation: 0,
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        final desc = description.trim();
+        // ใช้ status จากตัวแปรด้านบน ไม่ต้องประกาศซ้ำ
+   
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+ content: SingleChildScrollView(
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Status: ${status.isEmpty ? "-" : status}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      if (description.trim().isNotEmpty) ...[
+        const Text('Description', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 6),
+        Text(description.trim()),
+      ] else
+        const Text('No description'),
+    ],
+  ),
+),
+
+      actions: [
+        if (status.toLowerCase().trim() == 'available')
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx); // ปิด dialog ก่อน
+              try {
+                await ApiClient.borrow(
+                  userId: kDemoUserId,
+                  bookId: id,
+                );
+                await onChanged();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Borrow success')),
+                  );
+                }
+              } catch (e) {
+                final msg = e.toString();
+                var pretty = 'Borrow failed';
+                if (msg.contains('ER_NO_REFERENCED_ROW_2')) {
+                  pretty = 'Borrow failed: ไม่พบ userId ในตาราง users (เช็ค kDemoUserId ให้ตรง DB)';
+                } else if (msg.contains('ECONNREFUSED')) {
+                  pretty = 'Borrow failed: ต่อเซิร์ฟเวอร์ไม่ได้ (เช็ค baseUrl/พอร์ต)';
+                }
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(pretty)),
+                  );
+                }
+              }
+            },
+            child: const Text('Borrow'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+},
+
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -326,7 +489,7 @@ class _BookCard extends StatelessWidget {
                   color: Colors.black12,
                   borderRadius: BorderRadius.circular(12),
                   image: DecorationImage(
-                    image: AssetImage(book.coverUrl), // โหลดจาก assets
+                    image: _bookImage(image), // ✅ ใช้ฟังก์ชันช่วยโหลดภาพ
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -334,7 +497,7 @@ class _BookCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              book.title,
+              title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -343,20 +506,17 @@ class _BookCard extends StatelessWidget {
             const SizedBox(height: 6),
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: color.withOpacity(0.35)),
                 ),
                 child: Text(
-                  label,
+                  'Status: $status',
                   style: TextStyle(
                     fontSize: 12,
-                    color: color.shade700,
+                    color: color,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -370,9 +530,9 @@ class _BookCard extends StatelessWidget {
   }
 }
 
-//
-// ----------------------------- Search Bar -----------------------------
-//
+
+
+/// ----------------------------- Search Bar -----------------------------
 class _SearchBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
   const _SearchBar({required this.onChanged});
@@ -415,9 +575,7 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-//
-// -------------------------- Placeholder pages --------------------------
-//
+/// -------------------------- Placeholder pages --------------------------
 class _PlaceholderPage extends StatelessWidget {
   final String title;
   const _PlaceholderPage({required this.title});
@@ -427,36 +585,11 @@ class _PlaceholderPage extends StatelessWidget {
     return Center(
       child: Text(
         title,
-        style: Theme.of(
-          context,
-        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+        style: Theme.of(context)
+            .textTheme
+            .headlineMedium
+            ?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
 }
-
-//
-// ------------------------- Sample data (assets) -------------------------
-//
-final _sampleBooks = <Book>[
-  Book(
-    title: 'เรือนแรมสีแดง',
-    coverUrl: 'assets/images/1.jpg',
-    status: BookStatus.disable,
-  ),
-  Book(
-    title: 'แปดขุนเขา',
-    coverUrl: 'assets/images/2.jpg',
-    status: BookStatus.borrow,
-  ),
-  Book(
-    title: 'หนูน้อยหมวกแดงพบศพระหว่างเดินทาง',
-    coverUrl: 'assets/images/redhood.jpg',
-    status: BookStatus.available,
-  ),
-  Book(
-    title: 'เพราะรักบานในทุ่งดอกไม้',
-    coverUrl: 'assets/images/redhood.jpg',
-    status: BookStatus.available,
-  ),
-];
