@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://10.10.1.5/login'); // สำหรับ Emulator
+      final url = Uri.parse('http://192.168.49.1:3000/login');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -52,12 +52,12 @@ class _LoginPageState extends State<LoginPage> {
           SnackBar(content: Text('Welcome, $username!')),
         );
 
-        if (role == 1) {
+        if (role == 'admin') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const StaffBookStoreApp()),
           );
-        } else if (role == 2) {
+        } else if (role == 'lecturer') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const LectHome()),

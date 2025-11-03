@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projectmobile_g9/Login-Regis/login.dart';
 
 class StaffManage extends StatefulWidget {
   const StaffManage({super.key});
@@ -176,8 +177,13 @@ class _StaffManageState extends State<StaffManage> {
               ),
               onPressed: () {
                 Navigator.pop(context); // ปิด dialog
-                Navigator.pop(context); // กลับไปหน้า login
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (Route<dynamic> route) => false, // ล้างทุกหน้าออกจาก stack
+                );
               },
+
               child: const Text('Sure', style: TextStyle(color: Colors.white)),
             ),
             ElevatedButton(
@@ -892,7 +898,7 @@ class _StaffManageState extends State<StaffManage> {
                                   border: UnderlineInputBorder(),
                                 ),
                               ),
-                              const SizedBox(height: 6,),
+                              const SizedBox(height: 6),
                               TextField(
                                 decoration: const InputDecoration(
                                   labelText: 'Amount',
