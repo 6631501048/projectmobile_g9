@@ -12,29 +12,15 @@ import 'package:projectmobile_g9/Login-Regis/Login.dart';
 // Emulator Android ใช้ 10.0.2.2
 // ถ้าเป็นมือถือจริงใน LAN ให้เปลี่ยนเป็น IP คอม เช่น 'http://192.168.1.50:3000'
 const String baseUrl = 'http://192.168.49.1:3000';
-const int kDemoUserId = 9; // ให้ตรงกับ users.id ใน DB
-
 // ============================================
 
-void main() {
-  runApp(const StudentHome());
-}
-
 class StudentHome extends StatelessWidget {
-  const StudentHome({super.key});
+  final int userId;
+  const StudentHome({super.key, required this.userId});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Student Home',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF8B1A1A)),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
-      home: const BookStoreHome(),
-    );
+    return BookStoreHome(userId: userId);
   }
 }
 
@@ -42,19 +28,25 @@ class StudentHome extends StatelessWidget {
 enum UserRole { student, staff, admin }
 
 class BookStoreHome extends StatefulWidget {
-  const BookStoreHome({super.key});
+  final int userId;
+  const BookStoreHome({super.key, required this.userId});
 
   @override
   State<BookStoreHome> createState() => _BookStoreHomeState();
 }
 
 class _BookStoreHomeState extends State<BookStoreHome> {
-  
   // ตั้งค่าเริ่มเป็นนักศึกษา ตามภาพที่ให้มา
   UserRole currentRole = UserRole.student;
- 
+
   int _currentIndex = 0;
   String _query = '';
+  String _selectedFilter = 'All';
+
+  int? selectedBookId;
+
+  // ✅ และเพิ่ม key เพื่อ refresh หน้า Home
+  final GlobalKey<_HomeGridState> _homeKey = GlobalKey<_HomeGridState>();
 
   // สีตามดีไซน์
   static const Color kBar = Color(0xFF7A1B1B); // แถบล่าง
@@ -70,7 +62,16 @@ class _BookStoreHomeState extends State<BookStoreHome> {
           ? AppBar(
               automaticallyImplyLeading: false,
               titleSpacing: 0,
-              title: _SearchBar(onChanged: (v) => setState(() => _query = v)),
+              title: _SearchBar(
+                onChanged: (v) => setState(() => _query = v),
+                onFilterChanged: (status) {
+                  setState(() => _selectedFilter = status); // ✅ อัปเดตใน state
+                  _homeKey.currentState?.setFilter(
+                    status,
+                  ); // ✅ ส่งต่อไปกรองใน grid
+                },
+                selectedFilter: _selectedFilter,
+              ),
             )
           : AppBar(
               backgroundColor: const Color(0xFF8B1A1A),
@@ -88,17 +89,20 @@ class _BookStoreHomeState extends State<BookStoreHome> {
         index: _currentIndex,
         children: List.generate(pages.length, (i) {
           if (i == 0) {
-            // หน้า Home → ดึงจาก API จริง
-            return _HomeGrid(query: _query);
+            return _HomeGrid(key: _homeKey, query: _query, userId: widget.userId,);
           } else if (currentRole == UserRole.student && i == 1) {
             // หน้า My Request
-            return RequestPage();
+            return RequestPage(
+              key: UniqueKey(),
+              bookId: selectedBookId,
+              userId: widget.userId,
+            );
           } else if (currentRole == UserRole.student && i == 2) {
             // หน้า History
-            return const StudentHistory();
+            return StudentHistory(userId: widget.userId);
           } else if (currentRole == UserRole.student && i == 3) {
             // 🔹 หน้า Profile
-            return const StudentProfile();
+            return StudentProfile(userId: widget.userId);
           }
           // หน้าที่เหลือเป็น placeholder
           return _PlaceholderPage(title: pages[i].label);
@@ -241,7 +245,8 @@ class ApiClient {
 /// ===================== HOME GRID (API จริง) =====================
 class _HomeGrid extends StatefulWidget {
   final String query;
-  const _HomeGrid({required this.query});
+  final int userId; // ✅ เพิ่มตรงนี้
+  const _HomeGrid({super.key, required this.query, required this.userId});
 
   @override
   State<_HomeGrid> createState() => _HomeGridState();
@@ -249,6 +254,13 @@ class _HomeGrid extends StatefulWidget {
 
 class _HomeGridState extends State<_HomeGrid> {
   late Future<List<dynamic>> _booksFuture;
+  String _selectedStatus = 'All';
+
+  void setFilter(String status) {
+    setState(() {
+      _selectedStatus = status;
+    });
+  }
 
   @override
   void initState() {
@@ -283,11 +295,15 @@ class _HomeGridState extends State<_HomeGrid> {
           );
         }
 
-        final books = snapshot.data!
-    .where((b) => _readS(b, ['title', 'TITLE'])
-        .toLowerCase()
-        .contains(widget.query.toLowerCase().trim()))
-    .toList();
+        final books = snapshot.data!.where((b) {
+          final title = _readS(b, ['title', 'TITLE']).toLowerCase();
+          final status = _readS(b, ['status', 'STATUS']).toLowerCase();
+          final queryMatch = title.contains(widget.query.toLowerCase().trim());
+          final filterMatch =
+              _selectedStatus == 'All' ||
+              status == _selectedStatus.toLowerCase();
+          return queryMatch && filterMatch;
+        }).toList();
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -325,8 +341,11 @@ class _HomeGridState extends State<_HomeGrid> {
                     childAspectRatio: 0.68,
                   ),
                   itemCount: books.length,
-                  itemBuilder: (context, i) =>
-                      _BookCardFromJson(book: books[i], onChanged: _refresh),
+                  itemBuilder: (context, i) => _BookCardFromJson(
+                    book: books[i],
+                    onChanged: _refresh,
+                    userId: widget.userId,
+                  )
                 ),
               ),
             ],
@@ -336,6 +355,7 @@ class _HomeGridState extends State<_HomeGrid> {
     );
   }
 }
+
 /// 🔹 ฟังก์ชันช่วยโหลดภาพ (รองรับทั้ง URL, assets, และชื่อไฟล์ตรง)
 ImageProvider _bookImage(String? raw) {
   final s = (raw ?? '').trim();
@@ -346,10 +366,13 @@ ImageProvider _bookImage(String? raw) {
   if (s.startsWith('assets/')) return AssetImage(s);
   return AssetImage('assets/images/$s'); // เช่น "1.jpg", "redhood.jpg"
 }
+
 /// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
-/// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
-/// 
-String _readS(Map<String, dynamic> m, List<String> keys, {String fallback = ''}) {
+String _readS(
+  Map<String, dynamic> m,
+  List<String> keys, {
+  String fallback = '',
+}) {
   for (final k in keys) {
     final v = m[k];
     if (v != null) return v.toString(); // ✅ เพิ่ม ; ตรงนี้
@@ -358,7 +381,6 @@ String _readS(Map<String, dynamic> m, List<String> keys, {String fallback = ''})
 }
 
 int _readI(Map<String, dynamic> m, List<String> keys, {int fallback = 0}) {
-  
   for (final k in keys) {
     final v = m[k];
     if (v is int) return v;
@@ -374,7 +396,8 @@ int _readI(Map<String, dynamic> m, List<String> keys, {int fallback = 0}) {
 class _BookCardFromJson extends StatelessWidget {
   final Map<String, dynamic> book;
   final Future<void> Function() onChanged;
-  const _BookCardFromJson({required this.book, required this.onChanged});
+  final int userId;
+  const _BookCardFromJson({required this.book, required this.onChanged, required this.userId,});
 
   Color _statusColor(String s) {
     switch (s.toLowerCase()) {
@@ -390,95 +413,121 @@ class _BookCardFromJson extends StatelessWidget {
         return Colors.blueGrey;
     }
   }
- 
+
   @override
   Widget build(BuildContext context) {
-    
-  final int id             = _readI(book, ['id', 'ID']);
-  final String title       = _readS(book, ['title', 'TITLE']);
-  final String image       = _readS(book, ['image', 'IMAGE']);
-  final String status      = _readS(book, ['status', 'STATUS']);
-  final String description = _readS(book, [ 'description','DESCRIPTION','desc','Desc','DESC']);
-  final Color color        = _statusColor(status);
+    final int id = _readI(book, ['id', 'ID']);
+    final String title = _readS(book, ['title', 'TITLE']);
+    final String image = _readS(book, ['image', 'IMAGE']);
+    final String author = _readS(book, ['author', 'AUTHOR']);
+    final String status = _readS(book, ['status', 'STATUS']);
+    final String description = _readS(book, [
+      'description',
+      'DESCRIPTION',
+      'desc',
+      'Desc',
+      'DESC',
+    ]);
+    final Color color = _statusColor(status);
 
-  return Material(
-    color: Colors.white,
-    elevation: 0,
-    borderRadius: BorderRadius.circular(12),
-    child: InkWell(
+    return Material(
+      color: Colors.white,
+      elevation: 0,
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        final desc = description.trim();
-        // ใช้ status จากตัวแปรด้านบน ไม่ต้องประกาศซ้ำ
-   
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          final desc = description.trim();
+          // ใช้ status จากตัวแปรด้านบน ไม่ต้องประกาศซ้ำ
 
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
- content: SingleChildScrollView(
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          'Status: ${status.isEmpty ? "-" : status}',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ),
-      if (description.trim().isNotEmpty) ...[
-        const Text('Description', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        Text(description.trim()),
-      ] else
-        const Text('No description'),
-    ],
-  ),
-),
-
-      actions: [
-        if (status.toLowerCase().trim() == 'available')
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx); // ปิด dialog ก่อน
-              try {
-                await ApiClient.borrow(
-                  userId: kDemoUserId,
-                  bookId: id,
-                );
-                await onChanged();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Borrow success')),
-                  );
-                }
-              } catch (e) {
-                final msg = e.toString();
-                var pretty = 'Borrow failed';
-                if (msg.contains('ER_NO_REFERENCED_ROW_2')) {
-                  pretty = 'Borrow failed: ไม่พบ userId ในตาราง users (เช็ค kDemoUserId ให้ตรง DB)';
-                } else if (msg.contains('ECONNREFUSED')) {
-                  pretty = 'Borrow failed: ต่อเซิร์ฟเวอร์ไม่ได้ (เช็ค baseUrl/พอร์ต)';
-                }
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(pretty)),
-                  );
-                }
-              }
-            },
-            child: const Text('Borrow'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
-},
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(title),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Author: ${author.isEmpty ? "-" : author}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Status: ${status.isEmpty ? "-" : status}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (description.trim().isNotEmpty) ...[
+                      const Text(
+                        'Description',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(description.trim()),
+                    ] else
+                      const Text('No description'),
+                  ],
+                ),
+              ),
+              actions: [
+                if (status.toLowerCase().trim() == 'available')
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Scaffold(
+                              appBar: AppBar(
+                                title: const Text(
+                                  'Request Info',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                backgroundColor: Color(0xFF8B1A1A),
+                              ),
+                              body: RequestPage(
+                                title: book['title'],
+                                image: book['image'],
+                                bookId: book['id'],
+                                userId: userId,
+                              ),
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        final msg = e.toString();
+                        var pretty = 'Borrow failed';
+                        if (msg.contains('ER_NO_REFERENCED_ROW_2')) {
+                          pretty =
+                              'Borrow failed: ไม่พบ userId ในตาราง users (เช็ค kDemoUserId ให้ตรง DB)';
+                        } else if (msg.contains('ECONNREFUSED')) {
+                          pretty =
+                              'Borrow failed: ต่อเซิร์ฟเวอร์ไม่ได้ (เช็ค baseUrl/พอร์ต)';
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(pretty)));
+                        }
+                      }
+                    },
+                    child: const Text('Borrow'),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        },
 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -506,7 +555,10 @@ class _BookCardFromJson extends StatelessWidget {
             const SizedBox(height: 6),
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -530,12 +582,17 @@ class _BookCardFromJson extends StatelessWidget {
   }
 }
 
-
-
 /// ----------------------------- Search Bar -----------------------------
 class _SearchBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
-  const _SearchBar({required this.onChanged});
+  final ValueChanged<String> onFilterChanged;
+  final String selectedFilter;
+
+  const _SearchBar({
+    required this.onChanged,
+    required this.onFilterChanged,
+    required this.selectedFilter,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -550,9 +607,77 @@ class _SearchBar extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.menu),
-            onPressed: () => ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Menu tapped'))),
+            onPressed: () async {
+              final result = await showModalBottomSheet<String>(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (ctx) {
+                  String tempFilter = selectedFilter; // ใช้ตัวชั่วคราวใน sheet
+
+                  return StatefulBuilder(
+                    builder: (context, setModalState) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Filter by Status',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              children: [
+                                for (final status in [
+                                  'All',
+                                  'Available',
+                                  'Borrowed',
+                                  'Pending',
+                                  'Disabled',
+                                ])
+                                  ChoiceChip(
+                                    label: Text(status), // ✅ เอา icon check ออก
+                                    selected: tempFilter == status,
+                                    selectedColor: Colors.red.shade100,
+                                    labelStyle: TextStyle(
+                                      color: tempFilter == status
+                                          ? Colors.black
+                                          : Colors.grey[700],
+                                      fontWeight: tempFilter == status
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    onSelected: (_) {
+                                      setModalState(() => tempFilter = status);
+                                      Future.delayed(
+                                        const Duration(milliseconds: 180),
+                                        () {
+                                          Navigator.pop(ctx, status);
+                                        },
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+
+              if (result != null && context.mounted) {
+                onFilterChanged(result);
+              }
+            },
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -585,10 +710,9 @@ class _PlaceholderPage extends StatelessWidget {
     return Center(
       child: Text(
         title,
-        style: Theme.of(context)
-            .textTheme
-            .headlineMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
+        style: Theme.of(
+          context,
+        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }

@@ -23,7 +23,9 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> loginUser() async {
     if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both username and password')),
+        const SnackBar(
+          content: Text('Please enter both username and password'),
+        ),
       );
       return;
     }
@@ -47,10 +49,11 @@ class _LoginPageState extends State<LoginPage> {
         final data = jsonDecode(response.body);
         final role = data['role'];
         final username = data['username'];
+        final userId = data['id']; // ✅ ประกาศตัวแปรนี้เพิ่ม
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Welcome, $username!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Welcome, $username!')));
 
         if (role == 'admin') {
           Navigator.pushReplacement(
@@ -65,19 +68,17 @@ class _LoginPageState extends State<LoginPage> {
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const StudentHome()),
+            MaterialPageRoute(
+              builder: (_) => StudentHome(userId: userId), // ✅ ส่งต่อไปที่นี่
+            ),
           );
         }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid username or password')),
-        );
       }
     } catch (e) {
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -160,9 +161,7 @@ class _LoginPageState extends State<LoginPage> {
                       hintText: 'Password',
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscure
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                          _obscure ? Icons.visibility : Icons.visibility_off,
                         ),
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),

@@ -1,26 +1,131 @@
 import 'package:flutter/material.dart';
-import 'studenthome.dart';
+import 'package:projectmobile_g9/Student/studenthome.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class RequestPage extends StatefulWidget {
+  final int? bookId;
+  final String? title;
+  final String? image;
+  final int userId;
+
+  const RequestPage({
+    super.key,
+    this.bookId,
+    this.title,
+    this.image,
+    required this.userId,
+  });
+
   @override
   State<RequestPage> createState() => _RequestPageState();
 }
 
+const String ip = "192.168.49.1";
+const String port = "3000";
+
 class _RequestPageState extends State<RequestPage> {
-  String title = "---- TITLE ----";
-  String imagePath = "";
-  String status = 'PENDING';
+  String title = "";
+  String image = "";
+  String status = '';
 
   DateTime? fromDate = DateTime.now();
   DateTime? toDate = DateTime.now();
+  List<dynamic> borrowList = [];
+  bool isLoading = true;
 
   bool showInfo = true;
   bool isConfirmed = false;
 
+  @override
   void initState() {
     super.initState();
+
     fromDate = DateTime.now();
     toDate = DateTime.now().add(const Duration(days: 1));
+
+    title = widget.title ?? '';
+    image = widget.image ?? '';
+
+    if (widget.bookId != null && (title.isEmpty || image.isEmpty)) {
+      fetchBook();
+    }
+
+    fetchBorrowData();
+  }
+
+  Future<void> confirmBorrow() async {
+    final userId = widget.userId; // หรือใช้ session ที่ login เก็บไว้
+    final url = Uri.parse('$baseUrl/borrow');
+    final body = jsonEncode({'userId': userId, 'bookId': widget.bookId});
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('✅ Borrow request sent')));
+        Navigator.pop(context); // กลับไปหน้า home หรือไปหน้า history ก็ได้
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('❌ Borrow failed')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> fetchBook() async {
+    if (widget.bookId == null) return;
+    final url = Uri.parse("http://$ip:$port/books/${widget.bookId}");
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          title = data['title'] ?? '';
+          image = data['image'] ?? '';
+        });
+      } else {
+        print('Failed to load book: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching book: $e');
+    }
+  }
+
+  Future<void> fetchBorrowData() async {
+    final userId = widget.userId;
+    final url = Uri.parse("http://$ip:$port/borrow/$userId");
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          borrowList = data;
+          isLoading = false;
+        });
+      } else {
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      isLoading = true;
+    });
+    await fetchBorrowData();
   }
 
   @override
@@ -29,83 +134,82 @@ class _RequestPageState extends State<RequestPage> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 30),
-            child: SizedBox(
-              width: double.infinity,
-              height: 85,
-              child: Stack(
-                alignment: Alignment.center,
-                children: showInfo
-                    ? [
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 400),
-                          left: 255,
-                          top: 30,
-                          child: buildButton(
-                            text: 'Status',
-                            active: false,
-                            onPressed: () {
-                              setState(() {
-                                showInfo = false;
-                              });
-                            },
-                          ),
+          SizedBox(
+            width: double.infinity,
+            height: MediaQuery.of(context).size.width * 0.35,
+            child: Stack(
+              alignment: Alignment.center,
+              children: showInfo
+                  ? [
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 400),
+                        left: MediaQuery.of(context).size.width * 0.43,
+                        child: buildButton(
+                          text: 'Status',
+                          active: false,
+                          onPressed: () {
+                            setState(() {
+                              showInfo = false;
+                            });
+                          },
                         ),
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 300),
-                          left: 120,
-                          top: 0,
-                          child: buildButton(
-                            text: 'Request Info',
-                            active: true,
-                            onPressed: () {},
-                          ),
+                      ),
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 300),
+                        left: MediaQuery.of(context).size.width * 0.1,
+                        child: buildButton(
+                          text: 'Request Info',
+                          active: true,
+                          onPressed: () {},
                         ),
-                      ]
-                    : [
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 400),
-                          left: 255,
-                          top: 30,
-                          child: buildButton(
-                            text: 'Request Info',
-                            active: false,
-                            onPressed: () {
-                              setState(() {
-                                isConfirmed = false;
-                                showInfo = true;
-                              });
-                            },
-                          ),
+                      ),
+                    ]
+                  : [
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 400),
+                        left: MediaQuery.of(context).size.width * 0.46,
+                        child: buildButton(
+                          text: 'Request Info',
+                          active: false,
+                          onPressed: () {
+                            setState(() {
+                              isConfirmed = false;
+                              showInfo = true;
+                            });
+                          },
                         ),
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 300),
-                          left: 110,
-                          top: 0,
-                          child: buildButton(
-                            text: 'Status',
-                            active: true,
-                            onPressed: () {},
-                          ),
+                      ),
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 300),
+                        left: MediaQuery.of(context).size.width * 0.06,
+                        child: buildButton(
+                          text: 'Status',
+                          active: true,
+                          onPressed: () {},
                         ),
-                      ],
-              ),
+                      ),
+                    ],
             ),
           ),
-
           const SizedBox(height: 20),
           Expanded(
-            child: SingleChildScrollView(
-              child: showInfo ? RequestInfo() : Status(),
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: showInfo
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: RequestInfo(),
+                      ),
+                    )
+                  : Status(),
             ),
           ),
         ],
       ),
     );
   }
-
-  // ---------------------------------------------------------------//
 
   Widget buildButton({
     required String text,
@@ -114,11 +218,11 @@ class _RequestPageState extends State<RequestPage> {
   }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      width: active ? 170 : 110,
-      height: active ? 55 : 40,
+      width: 170,
+      height: 55,
       decoration: BoxDecoration(
         color: active ? const Color(0xFF6B1A1A) : Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF6B1A1A)),
         boxShadow: active
             ? [
@@ -137,7 +241,7 @@ class _RequestPageState extends State<RequestPage> {
           style: TextStyle(
             color: active ? Colors.white : const Color(0xFF6B1A1A),
             fontWeight: FontWeight.bold,
-            fontSize: active ? 18 : 12,
+            fontSize: 18,
           ),
         ),
       ),
@@ -145,7 +249,20 @@ class _RequestPageState extends State<RequestPage> {
   }
 
   Widget RequestInfo() {
-    return Center(
+    if (widget.bookId == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: 100),
+          child: Text(
+            'Please select a book first',
+            style: TextStyle(color: Colors.grey, fontSize: 18),
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.topCenter,
       child: Container(
         width: 300,
         padding: const EdgeInsets.all(16),
@@ -156,18 +273,18 @@ class _RequestPageState extends State<RequestPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Title(title),
+            buildTitle(title),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: imagePath.isNotEmpty
-                      ? Image.asset(
-                          imagePath,
-                          width: 110,
-                          height: 110,
+                  child: image.isNotEmpty
+                      ? Image(
+                          image: _bookImage(image),
+                          width: 120,
+                          height: 120,
                           fit: BoxFit.cover,
                         )
                       : Container(
@@ -210,13 +327,53 @@ class _RequestPageState extends State<RequestPage> {
                 Button(
                   'CONFIRM',
                   Colors.green,
-                  onPressed: () {
-                    setState(() {
-                      isConfirmed = true;
-                      showInfo = false;
-                    });
+                  onPressed: () async {
+                    if (widget.bookId != null) {
+                      final alreadyPending = borrowList.any(
+                        (borrow) =>
+                            borrow['book_id'] == widget.bookId &&
+                            borrow['status'] == 'pending',
+                      );
+
+                      if (alreadyPending) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('You already requested this book'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
+                      try {
+                        await ApiClient.borrow(
+                          userId: widget.userId,
+                          bookId: widget.bookId!,
+                          borrowDate: fromDate?.toIso8601String(),
+                          returnDate: toDate?.toIso8601String(),
+                        );
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Request sent successfully!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+
+                        setState(() {
+                          isConfirmed = true;
+                          showInfo = false;
+                        });
+                        fetchBorrowData();
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to send request: $e')),
+                        );
+                      }
+                    }
                   },
                 ),
+
                 Button(
                   'CANCEL',
                   Colors.red,
@@ -224,7 +381,10 @@ class _RequestPageState extends State<RequestPage> {
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => StudentHome()),
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            StudentHome(userId: widget.userId),
+                      ),
                       (route) => false,
                     );
                   },
@@ -237,11 +397,20 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
+  ImageProvider _bookImage(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return const AssetImage('assets/images/ready.jpg');
+    if (s.startsWith('http')) return NetworkImage(s);
+    if (s.startsWith('assets/')) return AssetImage(s);
+    return AssetImage('assets/images/$s');
+  }
+
   Widget Status() {
-    if (!isConfirmed) {
-      return Center(
+    if (borrowList.isEmpty) {
+      return const Align(
+        alignment: Alignment.topCenter,
         child: Padding(
-          padding: const EdgeInsets.only(top: 150),
+          padding: EdgeInsets.only(top: 100),
           child: Text(
             'No booking yet',
             style: TextStyle(color: Colors.grey, fontSize: 18),
@@ -250,178 +419,261 @@ class _RequestPageState extends State<RequestPage> {
       );
     }
 
-    return Center(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 300,
-            height: 230,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: borrowList.length,
+      itemBuilder: (context, index) {
+        final borrow = borrowList[index];
+        final title = borrow['title'] ?? '';
+        final imagePath = borrow['image'] ?? '';
+        final borrowDate = borrow['borrow_date'] != null
+            ? DateTime.parse(borrow['borrow_date']).toLocal()
+            : null;
+        final returnDate = borrow['return_date'] != null
+            ? DateTime.parse(borrow['return_date']).toLocal()
+            : null;
+        final status = borrow['status'] ?? '';
+
+        return Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 300,
+                height: 230,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 40),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Column(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        const SizedBox(height: 14),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: imagePath.isNotEmpty
-                              ? Image.asset(
-                                  imagePath,
-                                  width: 110,
-                                  height: 110,
-                                  fit: BoxFit.cover,
-                                )
-                              : Container(
-                                  width: 110,
-                                  height: 110,
-                                  color: Colors.grey[300],
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    size: 40,
-                                  ),
-                                ),
+                        Column(
+                          children: [
+                            const SizedBox(height: 14),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: imagePath.isNotEmpty
+                                  ? Image.asset(
+                                      'assets/images/$imagePath',
+                                      width: 110,
+                                      height: 110,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Container(
+                                      width: 110,
+                                      height: 110,
+                                      color: Colors.grey[300],
+                                      child: const Icon(
+                                        Icons.image_not_supported,
+                                        size: 40,
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 10),
+                            buildTitle(title),
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        Title(title),
+                        Column(
+                          children: [
+                            date(date: borrowDate),
+                            const SizedBox(height: 10),
+                            date(date: returnDate),
+                            const SizedBox(height: 10),
+                            statusBox(status),
+                          ],
+                        ),
                       ],
                     ),
-                    Column(
-                      children: [
-                        date(date: fromDate),
-                        const SizedBox(height: 10),
-                        date(date: toDate),
-                        const SizedBox(height: 10),
-                        statusBox(status),
-                      ],
-                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
+              ),
+              Positioned(
+                bottom: 17,
+                left: MediaQuery.of(context).size.width * 0.50,
+                child: Button(
+                  'CANCEL',
+                  Colors.red[800]!,
+                  textColor: Colors.white,
+                  onPressed: () async {
+                    final currentStatus = borrowList[index]['status'];
+                    if (currentStatus != 'pending') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Can cancel only if Pending'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
 
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Confirm Cancel'),
+                        content: const Text(
+                          'Are you sure you want to cancel this booking?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text(
+                              'No',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Yes'),
+                          ),
+                        ],
+                      ),
+                    );
 
-          Positioned(
-            bottom: -20,
-            left: 180,
-            child: Button(
-              'CANCEL',
-              Colors.red[800]!,
-              textColor: Colors.white,
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Confirm Cancellation'),
-                    content: const Text(
-                      'Are you sure you want to cancel?',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
+                    if (confirm == true) {
+                      final borrowId = borrowList[index]['id'];
+                      final url = Uri.parse(
+                        'http://$ip:$port/return/$borrowId',
+                      );
+
+                      try {
+                        final response = await http.put(
+                          url,
+                          headers: {'Content-Type': 'application/json'},
+                          body: jsonEncode({
+                            'status': 'rejected',
+                            'approval_status': 'rejected',
+                          }),
+                        );
+
+                        if (response.statusCode == 200) {
                           setState(() {
-                            isConfirmed = false;
-                            showInfo = true;
+                            borrowList.removeAt(index);
                           });
-                          Navigator.of(context).pop();
-                        },
-                        child: const Text(
-                          'Yes',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'No',
-                          style: TextStyle(color: Colors.black),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          Positioned(
-            bottom: -12,
-            left: 20,
-            child: SizedBox(
-              width: 100,
-              height: 30,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 0, 0, 0),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: const BorderSide(color: Colors.black26),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Return Book'),
-                      content: const Text(
-                        'Do you want to return this book?',
-                        style: TextStyle(fontSize: 15),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              isConfirmed = false;
-                              showInfo = true;
-                            });
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Book returned successfully!'),
-                                backgroundColor: Colors.green,
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Booking cancelled successfully'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Failed to cancel booking: ${response.body}',
                               ),
-                            );
-                          },
-                          child: const Text(
-                            'Yes',
-                            style: TextStyle(color: Colors.green),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
                           ),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text(
-                            'No',
-                            style: TextStyle(color: Colors.black),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                child: const Text(
-                  'RETURN',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                        );
+                      }
+                    }
+                  },
                 ),
               ),
-            ),
+
+              // =========== RETURN BUTTON ===========
+              Positioned(
+                bottom: 23,
+                left: MediaQuery.of(context).size.width * 0.06,
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.25,
+                  height: 35,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: const BorderSide(color: Colors.black26),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                    ),
+                    onPressed: () async {
+                      final currentStatus = borrowList[index]['status'];
+
+                      if (currentStatus != 'borrowed') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Can return only if Borrowed'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
+                      final borrowId = borrowList[index]['id'];
+                      final url = Uri.parse(
+                        "http://$ip:$port/return/$borrowId",
+                      );
+
+                      try {
+                        final response = await http.put(
+                          url,
+                          headers: {'Content-Type': 'application/json'},
+                          body: jsonEncode({'status': 'returned'}),
+                        );
+
+                        if (response.statusCode == 200) {
+                          setState(() {
+                            borrowList[index]['status'] = 'returned';
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Book returned successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed: ${response.body}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'RETURN',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -447,7 +699,7 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget Title(String text) {
+  Widget buildTitle(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
@@ -486,30 +738,71 @@ class _RequestPageState extends State<RequestPage> {
     );
   }
 
-  Widget statusBox(String text) {
+  Widget statusBox(String status) {
+    Color bgColor;
+    Color textColor;
+
+    switch (status.toLowerCase()) {
+      case 'borrowed':
+        bgColor = Colors.green[100]!;
+        textColor = Colors.green[800]!;
+        break;
+      case 'pending':
+        bgColor = Colors.orange[100]!;
+        textColor = Colors.orange[800]!;
+        break;
+      default:
+        bgColor = Colors.grey[200]!;
+        textColor = Colors.grey[800]!;
+    }
+
     return Container(
       width: 130,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.yellow[100],
-        border: Border.all(color: Colors.black),
+        color: bgColor,
+        border: Border.all(color: textColor),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange,
-                fontSize: 14,
-              ),
-            ),
+      child: Center(
+        child: Text(
+          status,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+            fontSize: 14,
           ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+// ===================== API Client =====================
+class ApiClient {
+  static Future<void> borrow({
+    required int userId,
+    required int bookId,
+    required String? borrowDate,
+    required String? returnDate,
+  }) async {
+    final url = Uri.parse('http://$ip:$port/borrow');
+
+    final body = {
+      'userId': userId,
+      'bookId': bookId,
+      'borrowDate': borrowDate,
+      'returnDate': returnDate,
+    };
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to borrow book: ${response.statusCode}');
+    }
   }
 }

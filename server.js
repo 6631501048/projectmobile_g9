@@ -80,7 +80,24 @@ app.post("/login", (req, res) => {
   });
 });
 
-// ---------------- BOOKS (สำคัญ) ----------------
+// 🔹 API: Get user by ID
+app.get("/user/:id", (req, res) => {
+  const userId = req.params.id;
+  const sql = "SELECT id, username, email, role FROM users WHERE id = ?";
+  db.query(sql, [userId], (err, results) => {
+    if (err) {
+      console.error("Error fetching user:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json(results[0]);
+  });
+});
+
+
+// ---------------- BOOKS -------------------
 app.get('/books', (req, res) => {
   const sql = `
     SELECT 
@@ -110,7 +127,7 @@ app.post('/borrow', (req, res) => {
     return res.status(400).json({ message: 'Missing fields' });
   }
 
-  // ✅ ใช้ชื่อ table ที่ถูกต้อง
+
   const sql = 'INSERT INTO borrowings (user_id, book_id) VALUES (?, ?)';
 
   db.query(sql, [userId, bookId], (err, result) => {
@@ -121,6 +138,141 @@ app.post('/borrow', (req, res) => {
     res.json({ message: 'Borrow success' });
   });
 });
+
+// ---------------- BORROW STATUS ----------------
+app.get('/borrow/:userId', (req, res) => {
+  const { userId } = req.params;
+  const sql = `
+    SELECT 
+      br.id AS id,           
+      br.book_id, 
+      br.status, 
+      br.borrow_date, 
+      br.return_date,
+      b.title, 
+      b.image
+    FROM borrowings br
+    JOIN books b ON br.book_id = b.id
+    WHERE br.user_id = ? AND br.status NOT IN ('returned', 'rejected')
+    ORDER BY br.borrow_date DESC
+  `;
+  db.query(sql, [userId], (err, rows) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json(rows);
+  });
+});
+
+
+// ---------------- RETURN / CANCEL ----------------
+app.put('/return/:id', (req, res) => {
+  const borrowId = req.params.id;
+  const newStatus = (req.body.status || '').toLowerCase().trim();
+  const approvalStatus = req.body.approval_status || null;
+
+  const selectSql = 'SELECT book_id, status FROM borrowings WHERE id = ?';
+  db.query(selectSql, [borrowId], (err, results) => {
+    if (err) {
+      console.error('Error selecting borrow:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
+
+    const borrowRow = results[0];
+    if (!borrowRow) {
+      return res.status(404).json({ message: 'Borrow record not found' });
+    }
+
+    const currentStatus = borrowRow.status.toLowerCase();
+
+    if (newStatus === 'rejected' && currentStatus !== 'pending') {
+      return res.status(400).json({ message: 'Cannot cancel non-pending request' });
+    }
+
+    if (newStatus === 'returned' && currentStatus !== 'borrowed') {
+      return res.status(400).json({ message: 'Cannot return non-borrowed book' });
+    }
+
+    let updateSql = '';
+    let updateParams = [];
+
+    if (newStatus === 'returned') {
+      updateSql = 'UPDATE borrowings SET status = ?, return_date = NOW() WHERE id = ?';
+      updateParams = [newStatus, borrowId];
+    } else if (newStatus === 'rejected') {
+      updateSql = 'UPDATE borrowings SET status = ?, approval_status = ? WHERE id = ?';
+      updateParams = [newStatus, approvalStatus, borrowId];
+    }
+
+    db.query(updateSql, updateParams, (err2) => {
+      if (err2) {
+        console.error('Error updating return status:', err2);
+        return res.status(500).json({ message: 'Update failed' });
+      }
+
+      // ถ้า cancel (rejected) ให้คืนสถานะหนังสือเป็น available
+      if (newStatus === 'rejected') {
+        db.query('UPDATE books SET status = "available" WHERE id = ?', [borrowRow.book_id]);
+      }
+
+      console.log(`Borrow ID ${borrowId} updated to ${newStatus}`);
+      res.json({ message: `Status updated to ${newStatus}` });
+    });
+  });
+});
+
+// === API: Borrow History (MySQL version) ===
+app.get('/api/history/:studentId', (req, res) => {
+  const { studentId } = req.params;
+  console.log(`📚 Fetching history for student ID: ${studentId}`);
+
+  const sql = `
+    SELECT 
+      b.title AS book,
+      br.borrow_date,
+      br.return_date,
+      COALESCE(a.username, '-') AS approver,
+      COALESCE(r.username, '-') AS receiver,
+      br.STATUS AS status,
+      b.image
+    FROM borrowings br
+    JOIN books b ON br.book_id = b.id
+    LEFT JOIN users a ON br.approved_by = a.id
+    LEFT JOIN users r ON br.received_by = r.id
+    WHERE br.user_id = ?
+    ORDER BY br.borrow_date DESC
+  `;
+
+  db.query(sql, [studentId], (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching borrow history:', err);
+      return res.status(500).json({ message: 'Error fetching borrow history' });
+    }
+
+    if (rows.length === 0) {
+      return res.json([]); // ไม่มีข้อมูล
+    }
+
+    const BASE_URL = 'http://192.168.49.1:3000'; // ✅ ใช้ IP ของเครื่อง Mochi
+    const formatted = rows.map(item => ({
+      book: item.book,
+      borrow_date: item.borrow_date
+        ? new Date(item.borrow_date).toLocaleDateString('th-TH')
+        : '-',
+      return_date: item.return_date
+        ? new Date(item.return_date).toLocaleDateString('th-TH')
+        : '-',
+      approver: item.approver,
+      receiver: item.receiver,
+      status: item.status || 'pending',
+      image: `${BASE_URL}/public/images/${item.image || 'default.png'}`
+    }));
+
+    res.json(formatted);
+  });
+});
+
 app.listen(3000, () => {
   console.log("🚀 Server running on port 3000");
 });

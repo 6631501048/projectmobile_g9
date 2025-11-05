@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
 
 void main() {
-  runApp(MaterialApp(debugShowCheckedModeBanner: false, 
-  // home: LectHome()
-  home: LoginPage()
-  // home: StaffBookStoreApp()
-  ));
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: LoginPage(),
+    );
+  }
 }
 

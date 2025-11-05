@@ -1,83 +1,112 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
 
+const String baseUrl = 'http://192.168.49.1:3000'; // ✅ IP ของ Mochi
+
 class StudentProfile extends StatefulWidget {
-  const StudentProfile({super.key});
+  final int userId;
+  const StudentProfile({super.key, required this.userId});
 
   @override
   State<StudentProfile> createState() => _StudentProfileState();
 }
 
 class _StudentProfileState extends State<StudentProfile> {
+  Map<String, dynamic>? userData;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserProfile();
+  }
+
+  Future<void> fetchUserProfile() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/user/${widget.userId}'));
+      if (res.statusCode == 200) {
+        setState(() {
+          userData = json.decode(res.body);
+        });
+      } else {
+        print('❌ Error fetching user: ${res.body}');
+      }
+    } catch (e) {
+      print('❌ Exception: $e');
+    }
+  }
+
+  // 🏷️ คืนค่า role label ที่อ่านง่าย
+  String getRoleLabel(dynamic roleValue) {
+    switch (roleValue.toString().toLowerCase()) {
+      case '1':
+      case 'admin':
+        return 'ADMIN';
+      case '2':
+      case 'lecturer':
+        return 'LECTURER';
+      case 'staff':
+        return 'STAFF';
+      case '0':
+      case 'student':
+      default:
+        return 'STUDENT';
+    }
+  }
+
+  // 🎨 เปลี่ยนสีตาม role
+  Color getRoleColor(dynamic roleValue) {
+    switch (roleValue.toString().toLowerCase()) {
+      case '1':
+      case 'admin':
+        return const Color(0xFF6A1B9A); // ม่วง
+      case '2':
+      case 'lecturer':
+        return const Color(0xFF2E7D32); // เขียว
+      case 'staff':
+        return const Color(0xFF0277BD); // ฟ้า
+      case '0':
+      case 'student':
+      default:
+        return const Color(0xFF8B1A1A); // แดง
+    }
+  }
+
   void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Column(
             children: const [
-              Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFF8B1A1A),
-                size: 50,
-              ),
+              Icon(Icons.warning_amber_rounded, color: Color(0xFF8B1A1A), size: 50),
               SizedBox(height: 10),
-              Text(
-                "Are you sure to Logout?",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFF8B1A1A),
-                ),
-                textAlign: TextAlign.center,
-              ),
+              Text("Are you sure to Logout?",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF8B1A1A)),
+                  textAlign: TextAlign.center),
             ],
           ),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop(); // ปิด popup
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>  LoginPage(),
-                  ), // ✅ ไปหน้า Login
-                );
+                Navigator.of(context).pop();
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8B1A1A),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+                  backgroundColor: const Color(0xFF8B1A1A),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
               child: const Text("Sure", style: TextStyle(color: Colors.white)),
             ),
-
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF8B1A1A)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-              child: const Text(
-                "Cancel",
-                style: TextStyle(color: Color(0xFF8B1A1A)),
-              ),
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF8B1A1A)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
+              child: const Text("Cancel", style: TextStyle(color: Color(0xFF8B1A1A))),
             ),
           ],
         );
@@ -87,73 +116,97 @@ class _StudentProfileState extends State<StudentProfile> {
 
   @override
   Widget build(BuildContext context) {
+    final username = userData?['username'] ?? '';
+    final firstLetter = username.isNotEmpty ? username[0].toUpperCase() : '?';
+    final roleColor = getRoleColor(userData?['role']);
+    final roleLabel = getRoleLabel(userData?['role']);
+
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F9),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9F3F3),
-                  border: Border.all(color: const Color(0xFF8B1A1A)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(14),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Student",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      "User : 6631501049",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      "Email : 6631501049@lamduan.mfu.ac.th",
-                      style: TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                  ],
+        child: Column(
+          children: [
+            const SizedBox(height: 30),
+
+            // 🧑‍🎓 Avatar วงกลม
+            CircleAvatar(
+              radius: 45,
+              backgroundColor: roleColor,
+              child: Text(
+                firstLetter,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 40,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 30),
-              SizedBox(
+            ),
+            const SizedBox(height: 20),
+
+            // 📋 กล่องข้อมูล
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9F3F3),
+                  border: Border.all(color: roleColor),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: userData == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            roleLabel,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: roleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "User : ${userData!['username']}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Email : ${userData!['email'] ?? '-'}",
+                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+
+            const Spacer(),
+
+            // 🔻 ปุ่ม Logout
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _showLogoutDialog,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8B1A1A),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(0),
-                    ),
+                    backgroundColor: roleColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                   child: const Text(
                     "Log out",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
