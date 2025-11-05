@@ -36,7 +36,10 @@ class HistoryItem {
 
 class StudentHistory extends StatefulWidget {
   final int userId; // ✅ เพิ่มตัวนี้
-  const StudentHistory({super.key, required this.userId}); // ✅ รับค่ามาจากหน้า Home
+  const StudentHistory({
+    super.key,
+    required this.userId,
+  }); // ✅ รับค่ามาจากหน้า Home
 
   @override
   State<StudentHistory> createState() => _StudentHistoryState();
@@ -48,7 +51,9 @@ class _StudentHistoryState extends State<StudentHistory> {
   @override
   void initState() {
     super.initState();
-    _historyFuture = _fetchHistory(widget.userId.toString()); // ✅ ใช้ userId จริง
+    _historyFuture = _fetchHistory(
+      widget.userId.toString(),
+    ); // ✅ ใช้ userId จริง
   }
 
   Future<List<HistoryItem>> _fetchHistory(String studentId) async {
@@ -91,7 +96,9 @@ class _StudentHistoryState extends State<StudentHistory> {
       color: const Color(0xFF8B1A1A),
       onRefresh: () async {
         setState(() {
-          _historyFuture = _fetchHistory(widget.userId.toString()); // ✅ ใช้ userId จริง
+          _historyFuture = _fetchHistory(
+            widget.userId.toString(),
+          ); // ✅ ใช้ userId จริง
         });
       },
       child: FutureBuilder<List<HistoryItem>>(
@@ -114,7 +121,19 @@ class _StudentHistoryState extends State<StudentHistory> {
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('You have no borrow history.'));
+            return ListView(
+              physics:
+                  const AlwaysScrollableScrollPhysics(), // ✅ ให้ดึงได้แม้ไม่มีข้อมูล
+              children: const [
+                SizedBox(height: 200),
+                Center(
+                  child: Text(
+                    'You have no borrow history.',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ),
+              ],
+            );
           }
 
           final historyData = snapshot.data!;

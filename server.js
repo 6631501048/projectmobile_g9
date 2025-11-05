@@ -120,22 +120,82 @@ app.get('/books', (req, res) => {
   });
 });
 
-// 🌐 Example: Borrow
+// 🌐 Borrow API — insert + update status
 app.post('/borrow', (req, res) => {
   const { userId, bookId } = req.body;
+
   if (!userId || !bookId) {
     return res.status(400).json({ message: 'Missing fields' });
   }
 
+  // 1️⃣ เพิ่มข้อมูลลงตาราง borrowings
+  const insertBorrow = `
+    INSERT INTO borrowings (user_id, book_id, status, borrow_date, return_date)
+    VALUES (?, ?, 'pending', NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))
+  `;
 
-  const sql = 'INSERT INTO borrowings (user_id, book_id) VALUES (?, ?)';
-
-  db.query(sql, [userId, bookId], (err, result) => {
+  db.query(insertBorrow, [userId, bookId], (err, result) => {
     if (err) {
-      console.error('Error inserting borrow:', err);
+      console.error('❌ Error inserting borrow:', err);
       return res.status(500).json({ message: 'Borrow failed', error: err });
     }
-    res.json({ message: 'Borrow success' });
+
+    // 2️⃣ อัปเดตสถานะหนังสือให้เป็น "pending"
+    const updateBook = `UPDATE books SET status = 'pending' WHERE id = ?`;
+    db.query(updateBook, [bookId], (err2) => {
+      if (err2) {
+        console.error('❌ Error updating book status:', err2);
+        return res.status(500).json({ message: 'Book update failed' });
+      }
+
+      console.log(`✅ User ${userId} borrowed book ${bookId} -> status updated`);
+      res.json({ message: 'Borrow success and book status updated' });
+    });
+  });
+});
+
+// ✅ Approve borrow request (for staff/admin)
+app.put('/approve/:id', (req, res) => {
+  const borrowId = req.params.id;
+  const approverId = req.body.approverId || null; // optional
+
+  // 1️⃣ อัปเดต borrowings เป็น borrowed
+  const updateBorrow = `
+    UPDATE borrowings 
+    SET status = 'borrowed', approval_status = 'approved', approved_by = ?, borrow_date = NOW()
+    WHERE id = ? AND status = 'pending'
+  `;
+
+  db.query(updateBorrow, [approverId, borrowId], (err, result) => {
+    if (err) {
+      console.error('❌ Error updating borrow status:', err);
+      return res.status(500).json({ message: 'Update failed' });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'No pending request found' });
+    }
+
+    // 2️⃣ ดึง book_id เพื่ออัปเดตตาราง books
+    db.query('SELECT book_id FROM borrowings WHERE id = ?', [borrowId], (err2, rows) => {
+      if (err2 || rows.length === 0) {
+        console.error('❌ Error fetching book_id:', err2);
+        return res.status(500).json({ message: 'Book fetch failed' });
+      }
+
+      const bookId = rows[0].book_id;
+
+      // 3️⃣ อัปเดตสถานะหนังสือให้เป็น borrowed
+      db.query('UPDATE books SET status = "borrowed" WHERE id = ?', [bookId], (err3) => {
+        if (err3) {
+          console.error('❌ Error updating book status:', err3);
+          return res.status(500).json({ message: 'Book status update failed' });
+        }
+
+        console.log(`✅ Borrow ${borrowId} approved -> book ${bookId} borrowed`);
+        res.json({ message: 'Borrow request approved successfully' });
+      });
+    });
   });
 });
 
@@ -198,7 +258,11 @@ app.put('/return/:id', (req, res) => {
     let updateParams = [];
 
     if (newStatus === 'returned') {
-      updateSql = 'UPDATE borrowings SET status = ?, return_date = NOW() WHERE id = ?';
+      updateSql = `
+        UPDATE borrowings 
+        SET status = ?, approval_status = 'approved', return_date = NOW()
+        WHERE id = ?
+      `;
       updateParams = [newStatus, borrowId];
     } else if (newStatus === 'rejected') {
       updateSql = 'UPDATE borrowings SET status = ?, approval_status = ? WHERE id = ?';
@@ -211,8 +275,8 @@ app.put('/return/:id', (req, res) => {
         return res.status(500).json({ message: 'Update failed' });
       }
 
-      // ถ้า cancel (rejected) ให้คืนสถานะหนังสือเป็น available
-      if (newStatus === 'rejected') {
+      // ✅ คืนหนังสือให้ available ทั้งตอน rejected และ returned
+      if (newStatus === 'rejected' || newStatus === 'returned') {
         db.query('UPDATE books SET status = "available" WHERE id = ?', [borrowRow.book_id]);
       }
 

@@ -89,7 +89,11 @@ class _BookStoreHomeState extends State<BookStoreHome> {
         index: _currentIndex,
         children: List.generate(pages.length, (i) {
           if (i == 0) {
-            return _HomeGrid(key: _homeKey, query: _query, userId: widget.userId,);
+            return _HomeGrid(
+              key: _homeKey,
+              query: _query,
+              userId: widget.userId,
+            );
           } else if (currentRole == UserRole.student && i == 1) {
             // หน้า My Request
             return RequestPage(
@@ -253,7 +257,6 @@ class _HomeGrid extends StatefulWidget {
 }
 
 class _HomeGridState extends State<_HomeGrid> {
-  late Future<List<dynamic>> _booksFuture;
   String _selectedStatus = 'All';
 
   void setFilter(String status) {
@@ -262,52 +265,49 @@ class _HomeGridState extends State<_HomeGrid> {
     });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _booksFuture = ApiClient.fetchBooks();
-  }
-
   Future<void> _refresh() async {
-    setState(() {
-      _booksFuture = ApiClient.fetchBooks();
-    });
+    setState(() {}); // รีเฟรชให้ FutureBuilder เรียกใหม่
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✅ รีเฟรชข้อมูลสำเร็จ'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-      future: _booksFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: FutureBuilder<List<dynamic>>(
+        // ✅ ดึงข้อมูลใหม่ทุกครั้งจาก server
+        future: ApiClient.fetchBooks(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return ListView(
               children: const [
                 SizedBox(height: 200),
                 Center(child: Text('ไม่มีหนังสือในระบบ')),
               ],
-            ),
-          );
-        }
+            );
+          }
 
-        final books = snapshot.data!.where((b) {
-          final title = _readS(b, ['title', 'TITLE']).toLowerCase();
-          final status = _readS(b, ['status', 'STATUS']).toLowerCase();
-          final queryMatch = title.contains(widget.query.toLowerCase().trim());
-          final filterMatch =
-              _selectedStatus == 'All' ||
-              status == _selectedStatus.toLowerCase();
-          return queryMatch && filterMatch;
-        }).toList();
+          final books = snapshot.data!.where((b) {
+            final title = _readS(b, ['title', 'TITLE']).toLowerCase();
+            final status = _readS(b, ['status', 'STATUS']).toLowerCase();
+            final queryMatch =
+                title.contains(widget.query.toLowerCase().trim());
+            final filterMatch = _selectedStatus == 'All' ||
+                status == _selectedStatus.toLowerCase();
+            return queryMatch && filterMatch;
+          }).toList();
 
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: CustomScrollView(
+          // ✅ แสดงหนังสือทั้งหมดใน Grid
+          return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
                 child: Column(
@@ -334,7 +334,8 @@ class _HomeGridState extends State<_HomeGrid> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 sliver: SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 18,
                     crossAxisSpacing: 18,
@@ -345,13 +346,13 @@ class _HomeGridState extends State<_HomeGrid> {
                     book: books[i],
                     onChanged: _refresh,
                     userId: widget.userId,
-                  )
+                  ),
                 ),
               ),
             ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -397,7 +398,11 @@ class _BookCardFromJson extends StatelessWidget {
   final Map<String, dynamic> book;
   final Future<void> Function() onChanged;
   final int userId;
-  const _BookCardFromJson({required this.book, required this.onChanged, required this.userId,});
+  const _BookCardFromJson({
+    required this.book,
+    required this.onChanged,
+    required this.userId,
+  });
 
   Color _statusColor(String s) {
     switch (s.toLowerCase()) {
@@ -481,7 +486,7 @@ class _BookCardFromJson extends StatelessWidget {
                     onPressed: () async {
                       Navigator.pop(ctx);
                       try {
-                        Navigator.push(
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => Scaffold(
@@ -490,7 +495,7 @@ class _BookCardFromJson extends StatelessWidget {
                                   'Request Info',
                                   style: TextStyle(color: Colors.white),
                                 ),
-                                backgroundColor: Color(0xFF8B1A1A),
+                                backgroundColor: const Color(0xFF8B1A1A),
                               ),
                               body: RequestPage(
                                 title: book['title'],
@@ -501,6 +506,11 @@ class _BookCardFromJson extends StatelessWidget {
                             ),
                           ),
                         );
+
+                        // ✅ ถ้า RequestPage ส่ง result กลับมาว่า borrow เสร็จ → refresh หน้า Home
+                        if (result == true) {
+                          onChanged(); // เรียก _refresh() ที่ส่งมาจาก _HomeGrid
+                        }
                       } catch (e) {
                         final msg = e.toString();
                         var pretty = 'Borrow failed';
