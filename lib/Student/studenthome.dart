@@ -117,7 +117,12 @@ class _BookStoreHomeState extends State<BookStoreHome> {
       bottomNavigationBar: _CurvedBottomBar(
         items: pages,
         currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: (i) {
+          setState(() {
+            _currentIndex = i;
+           
+          });
+        },
         backgroundColor: kBar,
         activePillColor: kActive,
         iconAndTextColor: kTextIcon,
@@ -299,9 +304,11 @@ class _HomeGridState extends State<_HomeGrid> {
           final books = snapshot.data!.where((b) {
             final title = _readS(b, ['title', 'TITLE']).toLowerCase();
             final status = _readS(b, ['status', 'STATUS']).toLowerCase();
-            final queryMatch =
-                title.contains(widget.query.toLowerCase().trim());
-            final filterMatch = _selectedStatus == 'All' ||
+            final queryMatch = title.contains(
+              widget.query.toLowerCase().trim(),
+            );
+            final filterMatch =
+                _selectedStatus == 'All' ||
                 status == _selectedStatus.toLowerCase();
             return queryMatch && filterMatch;
           }).toList();
@@ -334,8 +341,7 @@ class _HomeGridState extends State<_HomeGrid> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 sliver: SliverGrid.builder(
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 18,
                     crossAxisSpacing: 18,
@@ -485,51 +491,18 @@ class _BookCardFromJson extends StatelessWidget {
                   TextButton(
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      try {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => Scaffold(
-                              appBar: AppBar(
-                                title: const Text(
-                                  'Request Info',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                backgroundColor: const Color(0xFF8B1A1A),
-                              ),
-                              body: RequestPage(
-                                title: book['title'],
-                                image: book['image'],
-                                bookId: book['id'],
-                                userId: userId,
-                              ),
-                            ),
-                          ),
-                        );
-
-                        // ✅ ถ้า RequestPage ส่ง result กลับมาว่า borrow เสร็จ → refresh หน้า Home
-                        if (result == true) {
-                          onChanged(); // เรียก _refresh() ที่ส่งมาจาก _HomeGrid
-                        }
-                      } catch (e) {
-                        final msg = e.toString();
-                        var pretty = 'Borrow failed';
-                        if (msg.contains('ER_NO_REFERENCED_ROW_2')) {
-                          pretty =
-                              'Borrow failed: ไม่พบ userId ในตาราง users (เช็ค kDemoUserId ให้ตรง DB)';
-                        } else if (msg.contains('ECONNREFUSED')) {
-                          pretty =
-                              'Borrow failed: ต่อเซิร์ฟเวอร์ไม่ได้ (เช็ค baseUrl/พอร์ต)';
-                        }
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text(pretty)));
-                        }
+                      final homeState = context
+                          .findAncestorStateOfType<_BookStoreHomeState>();
+                      if (homeState != null) {
+                        homeState.setState(() {
+                          homeState._currentIndex = 1;
+                          homeState.selectedBookId = id;
+                        });
                       }
                     },
                     child: const Text('Borrow'),
                   ),
+
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
                   child: const Text('OK'),

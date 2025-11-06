@@ -120,39 +120,60 @@ app.get('/books', (req, res) => {
   });
 });
 
-// 🌐 Borrow API — insert + update status
-app.post('/borrow', (req, res) => {
-  const { userId, bookId } = req.body;
+// ---------------- BOOK DETAIL ----------------
+app.get('/books/:id', (req, res) => {
+  const id = req.params.id;
+  const sql = `
+    SELECT 
+      id, title, author, category, description, image, STATUS AS status
+    FROM books
+    WHERE id = ?
+  `;
 
-  if (!userId || !bookId) {
+  db.query(sql, [id], (err, results) => {
+    if (err) {
+      console.error('❌ Error fetching book:', err);
+      return res.status(500).json({ message: 'DB error' });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'Book not found' });
+    }
+
+    res.json(results[0]);
+  });
+});
+
+app.post('/borrow', (req, res) => {
+  const { userId, bookId, borrowDate, returnDate } = req.body;
+
+  if (!userId || !bookId || !borrowDate || !returnDate) {
     return res.status(400).json({ message: 'Missing fields' });
   }
 
-  // 1️⃣ เพิ่มข้อมูลลงตาราง borrowings
-  const insertBorrow = `
+  const sql = `
     INSERT INTO borrowings (user_id, book_id, status, borrow_date, return_date)
-    VALUES (?, ?, 'pending', NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))
+    VALUES (?, ?, 'pending', ?, ?)
   `;
 
-  db.query(insertBorrow, [userId, bookId], (err, result) => {
+  db.query(sql, [userId, bookId, borrowDate, returnDate], (err, result) => {
     if (err) {
       console.error('❌ Error inserting borrow:', err);
       return res.status(500).json({ message: 'Borrow failed', error: err });
     }
 
-    // 2️⃣ อัปเดตสถานะหนังสือให้เป็น "pending"
-    const updateBook = `UPDATE books SET status = 'pending' WHERE id = ?`;
-    db.query(updateBook, [bookId], (err2) => {
+    db.query('UPDATE books SET status = "pending" WHERE id = ?', [bookId], (err2) => {
       if (err2) {
         console.error('❌ Error updating book status:', err2);
         return res.status(500).json({ message: 'Book update failed' });
       }
 
-      console.log(`✅ User ${userId} borrowed book ${bookId} -> status updated`);
+      console.log(`✅ User ${userId} borrowed book ${bookId}`);
       res.json({ message: 'Borrow success and book status updated' });
     });
   });
 });
+
 
 // ✅ Approve borrow request (for staff/admin)
 app.put('/approve/:id', (req, res) => {
@@ -330,12 +351,14 @@ app.get('/api/history/:studentId', (req, res) => {
       approver: item.approver,
       receiver: item.receiver,
       status: item.status || 'pending',
-      image: `${BASE_URL}/public/images/${item.image || 'default.png'}`
+      image: `${BASE_URL}/images/${item.image || 'default.png'}`
     }));
 
     res.json(formatted);
   });
 });
+
+app.use('/images', express.static('assets/images'));
 
 app.listen(3000, () => {
   console.log("🚀 Server running on port 3000");
