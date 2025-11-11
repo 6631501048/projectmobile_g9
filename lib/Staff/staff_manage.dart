@@ -1,5 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:projectmobile_g9/Login-Regis/login.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
+
+XFile? _pickedImage; // ไฟล์ที่ผู้ใช้เลือก
+String? _uploadedFileName; // ชื่อไฟล์ที่ server ตอบกลับ (เช่น 'xyz.jpg')
+
+const String baseUrl = 'http://192.168.49.1:3000';
 
 class StaffManage extends StatefulWidget {
   const StaffManage({super.key});
@@ -15,6 +25,7 @@ class _StaffManageState extends State<StaffManage> {
   int _selectedIndex = 2;
   String selectedStatus = 'Available';
   bool showEditBook = false;
+  String? selectedFilter;
 
   // Controllers
   final TextEditingController searchController = TextEditingController();
@@ -22,82 +33,209 @@ class _StaffManageState extends State<StaffManage> {
   final TextEditingController authorController = TextEditingController();
   final TextEditingController detailController = TextEditingController();
 
-  final List<Map<String, String>> books = [
-    {
-      'title': 'DUNE (MOVIE TIE-IN)',
-      'tag': 'Literature',
-      'status': 'Available',
-      'image': 'assets/images/dune1.jpeg',
-    },
-    {
-      'title': 'Ready Player One',
-      'tag': 'Literature',
-      'status': 'Available',
-      'image': 'assets/images/ready.jpg',
-    },
-    {
-      'title': 'เรือนมรณะแดง',
-      'tag': 'Horror',
-      'status': 'Disable',
-      'image': 'assets/images/redboat.jpg',
-    },
-  ];
+  List<dynamic> books = [];
+  List<dynamic> filteredBooks = [];
 
-  Map<String, String>? editingBook; // เก็บข้อมูลหนังสือที่กำลังแก้ไข
-
-  // เมื่อกด Edit
-  void _editBook(Map<String, String> book) {
+  void _searchBooks(String query) {
+    final lowerQuery = query.toLowerCase();
     setState(() {
-      editingBook = Map<String, String>.from(book);
-      titleController.text = editingBook!['title'] ?? '';
-      authorController.text = editingBook!['author'] ?? '';
-      detailController.text = editingBook!['detail'] ?? '';
-      selectedStatus = editingBook!['status'] ?? 'Available';
-      showEditBook = true; // ✅ แสดง popup สำหรับแก้ไข
+      filteredBooks = books.where((book) {
+        final title = (book['title'] ?? '').toString().toLowerCase();
+        final author = (book['author'] ?? '').toString().toLowerCase();
+        return title.contains(lowerQuery) || author.contains(lowerQuery);
+      }).toList();
+    });
+  }
+
+  void _filterBooks(String? status) {
+    setState(() {
+      selectedFilter = status;
+      if (status == null) {
+        filteredBooks = books;
+      } else {
+        filteredBooks = books.where((book) {
+          return (book['status'] ?? '').toString().toLowerCase() ==
+              status.toLowerCase();
+        }).toList();
+      }
+    });
+  }
+
+  Future<void> fetchBooks() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/books'));
+      if (res.statusCode == 200) {
+        setState(() {
+          books = json.decode(res.body);
+          filteredBooks = books;
+        });
+      } else {
+        throw Exception('Failed to fetch books');
+      }
+    } catch (e) {
+      print('Error fetching books: $e');
+    }
+  }
+
+  Future<void> addBook() async {
+    final book = {
+      'title': titleController.text,
+      'author': authorController.text,
+      'category': 'Novel',
+      'description': detailController.text,
+      'status': selectedStatus.toLowerCase(),
+      'image': _uploadedFileName,
+    };
+    final res = await http.post(
+      Uri.parse('$baseUrl/books/add'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(book),
+    );
+    if (res.statusCode == 200) {
+      await fetchBooks();
+    }
+  }
+
+  Future<void> updateBook(int id) async {
+    final book = {
+      'title': titleController.text,
+      'author': authorController.text,
+      'category': 'Novel',
+      'description': detailController.text,
+      'status': selectedStatus.toLowerCase(),
+      'image': _uploadedFileName ?? editingBook?['image'],
+    };
+    final res = await http.put(
+      Uri.parse('$baseUrl/books/$id'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(book),
+    );
+    if (res.statusCode == 200) {
+      await fetchBooks();
+    }
+  }
+
+  Future<void> deleteBook(int id) async {
+    final res = await http.delete(Uri.parse('$baseUrl/books/$id'));
+    if (res.statusCode == 200) {
+      await fetchBooks();
+    }
+  }
+
+  Map<String, dynamic>? editingBook; // เก็บข้อมูลหนังสือที่กำลังแก้ไข
+  // เมื่อกด Edit
+  void _editBook(Map<String, dynamic> book) {
+    setState(() {
+      // ✅ เก็บสำเนา object ลงตัวแปรสถานะ
+      editingBook = Map<String, dynamic>.from(book);
+
+      // ✅ อัปเดต controllers ด้วยค่าจาก book
+      titleController.text = book['title'] ?? '';
+      authorController.text = book['author'] ?? '';
+      detailController.text = book['description'] ?? '';
+
+      // ✅ เก็บสถานะให้เป็น lower เพื่อส่ง API ได้ง่าย
+      selectedStatus = (book['status'] ?? 'available').toString().toLowerCase();
+      _uploadedFileName = book['image'];
+      _pickedImage = null;
+      showEditBook = true;
     });
   }
 
   // เมื่อกด Save
-  void _saveBook({bool isEdit = false}) {
-    setState(() {
-      if (isEdit && editingBook != null) {
-        // 🔸 กรณีแก้ไข
-        final index = books.indexWhere(
-          (b) => b['title'] == editingBook!['title'],
-        );
-        if (index != -1) {
-          books[index]['title'] = titleController.text;
-          books[index]['author'] = authorController.text;
-          books[index]['detail'] = detailController.text;
-          books[index]['status'] = selectedStatus;
-        }
-        editingBook = null;
-        showEditBook = false;
-      } else {
-        // 🔹 กรณีเพิ่มใหม่
-        books.add({
-          'title': titleController.text,
-          'author': authorController.text,
-          'tag': 'Literature',
-          'status': selectedStatus,
-          'image': 'assets/images/default.png',
-          'detail': detailController.text,
-        });
-        showAddBook = false;
-      }
+  void _saveBook({bool isEdit = false}) async {
+    if (titleController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill in the title')));
+      return;
+    }
 
-      // เคลียร์ช่องหลังบันทึก
+    if (isEdit && editingBook != null) {
+      // ✅ แปลง id ให้เป็น int เสมอ (กันกรณีเป็น num/dynamic)
+      final int id = (editingBook!['id'] as num).toInt();
+      if (_pickedImage != null && _uploadedFileName != null) {
+        editingBook!['image'] = _uploadedFileName;
+      }
+      await updateBook(id);
+      await fetchBooks();
+      setState(() {
+        filteredBooks = books;
+      });
+    } else {
+      await addBook();
+    }
+
+    setState(() {
+      showAddBook = false;
+      showEditBook = false;
       titleController.clear();
       authorController.clear();
       detailController.clear();
+      _pickedImage = null;
+      _uploadedFileName = null;
     });
   }
 
   // เมื่อกด Disable
   void _disableBook(int index) {
     setState(() {
-      books[index]['status'] = 'Disable';
+      books[index]['status'] = 'Disabled';
     });
+  }
+
+  Future<void> patchBookStatus(int id, String status) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/books/$id/status'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'status': status.toLowerCase()}),
+    );
+    if (res.statusCode == 200) {
+      await fetchBooks();
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to update status')));
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final img = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (img == null) return;
+    setState(() => _pickedImage = img);
+    await _uploadImage(img); // อัปขึ้น server ต่อเลย
+  }
+
+  Future<void> _uploadImage(XFile img) async {
+    final url = Uri.parse('$baseUrl/upload');
+    final req = http.MultipartRequest('POST', url);
+    req.files.add(
+      await http.MultipartFile.fromPath(
+        'image',
+        img.path,
+        filename: img.name,
+        contentType: MediaType('image', 'jpeg'),
+      ),
+    );
+
+    final res = await req.send();
+    final body = await res.stream.bytesToString();
+    if (res.statusCode == 200) {
+      final data = json.decode(body);
+      setState(() => _uploadedFileName = data['filename']);
+      print('✅ Uploaded file: $_uploadedFileName'); // <-- เพิ่มบรรทัดนี้
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Image uploaded successfully')),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Upload failed')));
+    }
   }
 
   // เมื่อกด Delete (พร้อม confirm)
@@ -263,173 +401,226 @@ class _StaffManageState extends State<StaffManage> {
           children: [
             // พื้นหลังหลัก — ให้ขยายเต็มจอจริง ๆ
             SizedBox.expand(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    children: [
-                      // Search bar
-                      TextField(
-                        controller: searchController,
-                        decoration: InputDecoration(
-                          hintText: 'SEARCH',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              searchController.clear();
-                              setState(() {});
-                            },
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
+              child: RefreshIndicator(
+                color: const Color(0xFF5E2B2B), // สีของวงกลมโหลด
+                onRefresh: fetchBooks, // ✅ เรียก API โหลดใหม่
+                child: SingleChildScrollView(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(), // ✅ ให้ดึงได้แม้เลื่อนสุด
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: Column(
+                      children: [
+                        // Search bar
+                        TextField(
+                          controller: searchController,
+                          onChanged: _searchBooks, // ✅ ผูกกับฟังก์ชันค้นหา
+                          decoration: InputDecoration(
+                            hintText: 'SEARCH BY TITLE OR AUTHOR',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                searchController.clear();
+                                _searchBooks('');
+                              },
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
 
-                      const SizedBox(height: 20),
+                        // 🔹 GridView แสดงหนังสือ
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                                childAspectRatio: 0.68,
+                              ),
+                          itemCount: filteredBooks.length,
+                          itemBuilder: (context, index) {
+                            final book = filteredBooks[index];
+                            final status = (book['status'] ?? '')
+                                .toString()
+                                .toLowerCase();
 
-                      // เนื้อหาหนังสือจริง (ตอนนี้เอา placeholder ออกได้เลย)
-                      // หรือจะใช้ Container สูง ๆ แทนก็ได้
-                      // 🔹 GridView แสดงหนังสือ
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio:
-                                  0.5, // ✅ ปรับอัตราส่วนให้สูงขึ้นเล็กน้อย
-                            ),
-                        itemCount: books.length,
-                        itemBuilder: (context, index) {
-                          final book = books[index];
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 8,
-                              ), // ✅ เพิ่มระยะหายใจ
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(8),
-                                    ),
-                                    child: Image.asset(
-                                      book['image']!,
-                                      height: 120, // ✅ ลดความสูงภาพลง
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                    ),
+                            final statusText =
+                                {
+                                  'available': 'Available',
+                                  'borrowed': 'Borrowed',
+                                  'pending': 'Pending Approve',
+                                  'disabled': 'Disabled',
+                                }[status] ??
+                                '-';
+
+                            final statusColor = status == 'available'
+                                ? Colors.green
+                                : status == 'disabled'
+                                ? Colors.red
+                                : Colors.orange;
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
+                                ],
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    // 🔹 รูปภาพปกหนังสือ
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        '$baseUrl/uploads/${book['image'] ?? 'default.png'}',
+                                        height: 150, // ขยายขึ้นเล็กน้อย
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(
+                                                  Icons.image_not_supported,
+                                                  size: 60,
+                                                  color: Colors.grey,
+                                                ),
+                                      ),
                                     ),
-                                    child: Text(
-                                      book['title']!,
+                                    const SizedBox(height: 10),
+
+                                    // 🔹 เส้นคั่นบาง ๆ (เพิ่มความเรียบหรู)
+                                    Divider(
+                                      color: Colors.grey[300],
+                                      thickness: 1,
+                                      height: 10,
+                                    ),
+
+                                    // 🔹 ชื่อหนังสือ
+                                    Text(
+                                      book['title'] ?? '-',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                        fontSize: 15, // ✅ ใหญ่ขึ้นจากเดิม
+                                        color: Colors.black87,
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    'Tag: ${book['tag']}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Status: ${book['status']}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: book['status'] == 'Available'
-                                          ? Colors.green
-                                          : (book['status'] == 'Disable'
-                                                ? Colors.red
-                                                : Colors.orange),
-                                    ),
-                                  ),
-                                  const Spacer(), // ✅ ดันปุ่มลงล่างแบบไม่ล้น
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.brown[700],
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          minimumSize: const Size(60, 25),
-                                        ),
-                                        onPressed: () => _editBook(book),
-                                        child: const Text(
-                                          'Edit',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
 
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              book['status'] == 'Disable'
-                                              ? Colors.grey
-                                              : Colors.redAccent,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          minimumSize: const Size(60, 25),
-                                        ),
-                                        onPressed: () => _disableBook(index),
-                                        child: Text(
-                                          book['status'] == 'Disable'
-                                              ? 'Disabled'
-                                              : 'Disable',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.white,
-                                          ),
-                                        ),
+                                    // 🔹 ผู้เขียน
+                                    Text(
+                                      book['author'] ?? '-',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 13, // ✅ ใหญ่ขึ้น
+                                        color: Colors.black54,
+                                        fontStyle: FontStyle.italic,
                                       ),
-                                    ],
-                                  ),
-                                ],
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+
+                                    const SizedBox(height: 6),
+
+                                    // 🔹 สถานะ
+                                    Text(
+                                      'Status: $statusText',
+                                      style: TextStyle(
+                                        fontSize: 13, // ✅ ใหญ่ขึ้น
+                                        fontWeight: FontWeight.w600,
+                                        color: statusColor,
+                                      ),
+                                    ),
+
+                                    const Spacer(),
+
+                                    // 🔹 ปุ่ม Edit / Disable
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.brown[700],
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8,
+                                            ),
+                                            minimumSize: const Size(70, 32),
+                                          ),
+                                          onPressed: () => _editBook(book),
+                                          child: const Text(
+                                            'Edit',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                (book['status']
+                                                        ?.toString()
+                                                        .toLowerCase() ==
+                                                    'disabled')
+                                                ? Colors.grey
+                                                : Colors.redAccent,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8,
+                                            ),
+                                            minimumSize: const Size(70, 32),
+                                          ),
+                                          onPressed: () async {
+                                            final int id =
+                                                (books[index]['id'] as num)
+                                                    .toInt();
+                                            await patchBookStatus(
+                                              id,
+                                              'disabled',
+                                            );
+                                          },
+                                          child: Text(
+                                            (book['status']
+                                                        ?.toString()
+                                                        .toLowerCase() ==
+                                                    'disabled')
+                                                ? 'Disabled'
+                                                : 'Disable',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -518,19 +709,24 @@ class _StaffManageState extends State<StaffManage> {
                                 children: [
                                   FilterChip(
                                     label: const Text('Available'),
-                                    onSelected: (_) {},
+                                    selected: selectedFilter == 'available',
+                                    onSelected: (_) =>
+                                        _filterBooks('available'),
                                   ),
                                   FilterChip(
                                     label: const Text('Borrowed'),
-                                    onSelected: (_) {},
+                                    selected: selectedFilter == 'borrowed',
+                                    onSelected: (_) => _filterBooks('borrowed'),
                                   ),
                                   FilterChip(
                                     label: const Text('Pending Approve'),
-                                    onSelected: (_) {},
+                                    selected: selectedFilter == 'pending',
+                                    onSelected: (_) => _filterBooks('pending'),
                                   ),
                                   FilterChip(
                                     label: const Text('Disable'),
-                                    onSelected: (_) {},
+                                    selected: selectedFilter == 'disabled',
+                                    onSelected: (_) => _filterBooks('disabled'),
                                   ),
                                 ],
                               ),
@@ -554,7 +750,10 @@ class _StaffManageState extends State<StaffManage> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.grey[600],
                                     ),
-                                    onPressed: () {},
+                                    onPressed: () {
+                                      _filterBooks(null);
+                                      setState(() => showFilter = false);
+                                    },
                                     child: const Text(
                                       'Clear',
                                       style: TextStyle(color: Colors.white),
@@ -610,10 +809,14 @@ class _StaffManageState extends State<StaffManage> {
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(color: Colors.grey),
                                       image: DecorationImage(
-                                        image: AssetImage(
-                                          editingBook?['image'] ??
-                                              'assets/images/default.png',
-                                        ),
+                                        image: (_pickedImage != null)
+                                            ? FileImage(
+                                                    File(_pickedImage!.path),
+                                                  )
+                                                  as ImageProvider
+                                            : NetworkImage(
+                                                '$baseUrl/uploads/${_uploadedFileName ?? editingBook?['image'] ?? 'default.png'}',
+                                              ),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -631,7 +834,8 @@ class _StaffManageState extends State<StaffManage> {
                                             ),
                                           ),
                                         ),
-                                        onPressed: () {},
+                                        onPressed:
+                                            _pickImage, // ✅ ใช้ฟังก์ชันเดียวกับ add book
                                         icon: const Icon(
                                           Icons.upload,
                                           color: Colors.white,
@@ -649,6 +853,7 @@ class _StaffManageState extends State<StaffManage> {
 
                               // 🔸 Book info
                               TextField(
+                                controller: titleController,
                                 decoration: const InputDecoration(
                                   labelText: 'Title',
                                   border: UnderlineInputBorder(),
@@ -657,62 +862,48 @@ class _StaffManageState extends State<StaffManage> {
                               const SizedBox(height: 6),
 
                               TextField(
+                                controller: authorController,
                                 decoration: const InputDecoration(
                                   labelText: 'Author',
                                   border: UnderlineInputBorder(),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'Amount',
-                                  border: UnderlineInputBorder(),
-                                ),
-                              ),
-
                               const SizedBox(height: 16),
+
                               const Text(
                                 'Status :',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                               Row(
                                 children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(
-                                        value: selectedStatus == 'Available',
-                                        onChanged: (_) => setState(
-                                          () => selectedStatus = 'Available',
-                                        ),
-                                      ),
-                                      const Text('Available'),
-                                    ],
+                                  Checkbox(
+                                    value: selectedStatus == 'available',
+                                    onChanged: (_) => setState(
+                                      () => selectedStatus = 'available',
+                                    ),
                                   ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(
-                                        value: selectedStatus == 'Disable',
-                                        onChanged: (_) => setState(
-                                          () => selectedStatus = 'Disable',
-                                        ),
-                                      ),
-                                      const Text('Disable'),
-                                    ],
+                                  const Text('Available'),
+                                  Checkbox(
+                                    value: selectedStatus == 'pending',
+                                    onChanged: (_) => setState(
+                                      () => selectedStatus = 'pending',
+                                    ),
                                   ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(
-                                        value: selectedStatus == 'Borrowed',
-                                        onChanged: (_) => setState(
-                                          () => selectedStatus = 'Borrowed',
-                                        ),
-                                      ),
-                                      const Text('Borrowed'),
-                                    ],
+                                  const Text('Pending'),
+                                  Checkbox(
+                                    value: selectedStatus == 'borrowed',
+                                    onChanged: (_) => setState(
+                                      () => selectedStatus = 'borrowed',
+                                    ),
                                   ),
+                                  const Text('Borrowed'),
+                                  Checkbox(
+                                    value: selectedStatus == 'disabled',
+                                    onChanged: (_) => setState(
+                                      () => selectedStatus = 'disabled',
+                                    ),
+                                  ),
+                                  const Text('Disabled'),
                                 ],
                               ),
 
@@ -776,14 +967,12 @@ class _StaffManageState extends State<StaffManage> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                    onPressed: () {
+                                    onPressed: () async {
                                       if (editingBook != null) {
-                                        final index = books.indexWhere(
-                                          (b) =>
-                                              b['title'] ==
-                                              editingBook!['title'],
-                                        );
-                                        if (index != -1) books.removeAt(index);
+                                        final int id =
+                                            (editingBook!['id'] as num).toInt();
+                                        await deleteBook(id);
+                                        await fetchBooks();
                                       }
                                       setState(() => showEditBook = false);
                                     },
@@ -840,10 +1029,6 @@ class _StaffManageState extends State<StaffManage> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 40),
                           width: MediaQuery.of(context).size.width * 0.9,
-                          constraints: BoxConstraints(
-                            maxHeight:
-                                MediaQuery.of(context).size.height * 0.85,
-                          ),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -868,15 +1053,37 @@ class _StaffManageState extends State<StaffManage> {
                                     decoration: BoxDecoration(
                                       border: Border.all(color: Colors.grey),
                                       borderRadius: BorderRadius.circular(8),
+                                      image:
+                                          (_pickedImage != null ||
+                                              _uploadedFileName != null)
+                                          ? DecorationImage(
+                                              image: _pickedImage != null
+                                                  ? FileImage(
+                                                          File(
+                                                            _pickedImage!.path,
+                                                          ),
+                                                        )
+                                                        as ImageProvider
+                                                  : NetworkImage(
+                                                      '$baseUrl/images/${_uploadedFileName!}',
+                                                    ),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
                                     ),
-                                    child: const Icon(Icons.image, size: 50),
+                                    child:
+                                        (_pickedImage == null &&
+                                            _uploadedFileName == null)
+                                        ? const Icon(Icons.image, size: 50)
+                                        : null,
                                   ),
                                   const SizedBox(width: 16),
                                   ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.brown[700],
                                     ),
-                                    onPressed: () {},
+                                    onPressed:
+                                        _pickImage, // ✅ ผูกเข้ากับเลือก+อัปโหลด
                                     child: const Text(
                                       'Upload',
                                       style: TextStyle(color: Colors.white),
@@ -885,69 +1092,84 @@ class _StaffManageState extends State<StaffManage> {
                                 ],
                               ),
                               const SizedBox(height: 16),
+
+                              // 🔸 Title / Author
                               TextField(
+                                controller: titleController,
                                 decoration: const InputDecoration(
                                   labelText: 'Title',
                                   border: UnderlineInputBorder(),
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 6),
                               TextField(
+                                controller: authorController,
                                 decoration: const InputDecoration(
                                   labelText: 'Author',
                                   border: UnderlineInputBorder(),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'Amount',
-                                  border: UnderlineInputBorder(),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
+
+                              const SizedBox(height: 12),
                               const Text(
                                 'Status :',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              Wrap(
-                                spacing: 10,
+
+                              // 🔸 Status radio group
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(value: true, onChanged: (_) {}),
-                                      const Text('Available'),
-                                    ],
+                                  RadioListTile<String>(
+                                    title: const Text('Available'),
+                                    value: 'Available',
+                                    groupValue: selectedStatus,
+                                    onChanged: (value) =>
+                                        setState(() => selectedStatus = value!),
                                   ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(value: false, onChanged: (_) {}),
-                                      const Text('Borrowed'),
-                                    ],
+                                  RadioListTile<String>(
+                                    title: const Text('Borrowed'),
+                                    value: 'Borrowed',
+                                    groupValue: selectedStatus,
+                                    onChanged: (value) =>
+                                        setState(() => selectedStatus = value!),
                                   ),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Checkbox(value: false, onChanged: (_) {}),
-                                      const Text('Disable'),
-                                    ],
+                                  RadioListTile<String>(
+                                    title: const Text('Pending'),
+                                    value: 'Pending',
+                                    groupValue: selectedStatus,
+                                    onChanged: (value) =>
+                                        setState(() => selectedStatus = value!),
+                                  ),
+                                  RadioListTile<String>(
+                                    title: const Text('Disable'),
+                                    value: 'Disabled',
+                                    groupValue: selectedStatus,
+                                    onChanged: (value) =>
+                                        setState(() => selectedStatus = value!),
                                   ),
                                 ],
                               ),
+
+                              const SizedBox(height: 8),
                               const Text(
                                 'Detail :',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               TextField(
-                                maxLines: 4,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
+                                controller: detailController,
+                                maxLines: 6,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.all(10),
                                 ),
                               ),
                               const SizedBox(height: 16),
+
+                              // 🔸 Buttons row
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceEvenly,
@@ -956,8 +1178,19 @@ class _StaffManageState extends State<StaffManage> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.brown[700],
                                     ),
-                                    onPressed: () =>
-                                        setState(() => showAddBook = false),
+                                    onPressed: () {
+                                      _saveBook();
+                                      // ✅ เคลียร์ฟอร์มเมื่อกด save
+                                      setState(() {
+                                        titleController.clear();
+                                        authorController.clear();
+                                        detailController.clear();
+                                        selectedStatus = 'Available';
+                                        showAddBook = false;
+                                        _pickedImage = null;
+                                        _uploadedFileName = null;
+                                      });
+                                    },
                                     child: const Text(
                                       'Save',
                                       style: TextStyle(color: Colors.white),
@@ -967,8 +1200,16 @@ class _StaffManageState extends State<StaffManage> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.grey,
                                     ),
-                                    onPressed: () =>
-                                        setState(() => showAddBook = false),
+                                    onPressed: () {
+                                      setState(() {
+                                        showAddBook = false;
+                                        // ✅ รีเซ็ตฟอร์มเมื่อยกเลิก
+                                        titleController.clear();
+                                        authorController.clear();
+                                        detailController.clear();
+                                        selectedStatus = 'Available';
+                                      });
+                                    },
                                     child: const Text(
                                       'Cancel',
                                       style: TextStyle(color: Colors.white),
@@ -1004,29 +1245,12 @@ class _StaffManageState extends State<StaffManage> {
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-
-      // // 🔹 Bottom Navigation
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: _selectedIndex,
-      //   onTap: _onItemTapped,
-      //   type: BottomNavigationBarType.fixed,
-      //   backgroundColor: const Color(0xFF5E2B2B),
-      //   selectedItemColor: Colors.white,
-      //   unselectedItemColor: Colors.white70,
-      //   items: const [
-      //     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.dashboard),
-      //       label: 'Dashboard',
-      //     ),
-      //     BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Manage'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.assignment_return),
-      //       label: 'Get Return',
-      //     ),
-      //   ],
-      // ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchBooks();
   }
 }

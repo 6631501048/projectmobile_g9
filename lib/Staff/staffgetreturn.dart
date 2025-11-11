@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:projectmobile_g9/Login-Regis/login.dart';
+
+const String baseUrl = 'http://192.168.49.1:3000';
 
 class Returnbook extends StatefulWidget {
   const Returnbook({super.key});
@@ -7,170 +12,297 @@ class Returnbook extends StatefulWidget {
   State<Returnbook> createState() => _ReturnbookState();
 }
 
-enum ReturnTab { pending, borrowed, available }
+enum ReturnTab { pending, borrowed, returned }
 
 class _ReturnbookState extends State<Returnbook> {
   ReturnTab current = ReturnTab.pending;
-  int bottomIndex = 3;
+  List<dynamic> items = [];
+  bool isLoading = true;
+  bool hasError = false;
 
-  // mock data สำหรับเดโม
-  final items = List.generate(8, (i) {
-    return {
-      'borrower': 'Kwan',
-      'book': 'เรื่องแรมสีแดง',
-      'from': '5/10/2025',
-      'to': '12/10/2025',
-    };
-  });
+  @override
+  void initState() {
+    super.initState();
+    fetchReturnList();
+  }
+
+  Future<void> fetchReturnList() async {
+    setState(() {
+      isLoading = true;
+      hasError = false;
+    });
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/staff/getreturn'));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        setState(() {
+          items = data;
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to fetch data');
+      }
+    } catch (e) {
+      print('❌ Error: $e');
+      setState(() {
+        isLoading = false;
+        hasError = true;
+      });
+    }
+  }
+
+  Future<void> confirmReturn(int borrowId) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/api/staff/return/$borrowId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'received_by': 1}),
+      );
+
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Book marked as returned')),
+        );
+        fetchReturnList();
+      } else {
+        final msg = json.decode(res.body)['message'] ?? 'Error';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('⚠️ $msg')));
+      }
+    } catch (e) {
+      print('❌ Error confirming return: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     const maroon = Color(0xFF7B2020);
     const gold = Color(0xFFB38820);
-    const chipText = TextStyle(fontWeight: FontWeight.w700, fontSize: 12);
+
+    final filteredItems = items.where((it) {
+      final status = (it['status'] ?? '').toLowerCase();
+      if (current == ReturnTab.pending) return status == 'pending';
+      if (current == ReturnTab.borrowed) return status == 'borrowed';
+      if (current == ReturnTab.returned) return status == 'returned';
+      return false;
+    }).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7EFF0),
       appBar: AppBar(
-        elevation: 0,
         backgroundColor: maroon,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
-          onPressed: () {},
-        ),
         centerTitle: true,
         title: const Text(
-          'Get Return',
+          'Return Books',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
             fontSize: 22,
           ),
         ),
-      ),
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              builder: (ctx) => Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Menu',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
-      // เนื้อหา
-      body: Column(
-        children: [
-          const SizedBox(height: 10),
+                    // 🔄 Refresh
+                    ListTile(
+                      leading: const Icon(Icons.refresh, color: Colors.blue),
+                      title: const Text('Refresh List'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        fetchReturnList();
+                      },
+                    ),
 
-          // แถบตัวเลือก 3 อัน
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                _Segment(
-                  label: 'Pending\nreturn',
-                  selected: current == ReturnTab.pending,
-                  fillColor: gold,
-                  borderColor: gold,
-                  textStyle: chipText,
-                  onTap: () => setState(() => current = ReturnTab.pending),
+                    const Divider(height: 1),
+
+                    // 🚪 Logout
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Confirm Logout'),
+                            content: const Text(
+                              'Are you sure you want to log out?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pop(); // ปิด dialog
+                                  Future.delayed(
+                                    const Duration(milliseconds: 150),
+                                    () {
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                          builder: (_) => const LoginPage(),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    },
+                                  );
+                                },
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                _Segment(
-                  label: 'Borrowed',
-                  selected: current == ReturnTab.borrowed,
-                  fillColor: Colors.transparent,
-                  borderColor: Colors.blueGrey,
-                  textStyle: chipText.copyWith(color: Colors.blueGrey),
-                  onTap: () => setState(() => current = ReturnTab.borrowed),
-                ),
-                const SizedBox(width: 10),
-                _Segment(
-                  label: 'Available',
-                  selected: current == ReturnTab.available,
-                  fillColor: Colors.transparent,
-                  borderColor: Colors.green,
-                  textStyle: chipText.copyWith(color: Colors.green),
-                  onTap: () => setState(() => current = ReturnTab.available),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // รายการบัตร
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
-              itemBuilder: (context, i) {
-                final it = items[i];
-                return _ReturnCard(
-                  borrower: it['borrower']!,
-                  book: it['book']!,
-                  from: it['from']!,
-                  to: it['to']!,
-                  status: current == ReturnTab.pending
-                      ? 'Pending return'
-                      : current == ReturnTab.borrowed
-                          ? 'Borrowed'
-                          : 'Available',
-                  statusColor: current == ReturnTab.pending
-                      ? gold
-                      : current == ReturnTab.borrowed
-                          ? Colors.blueGrey
-                          : Colors.green,
-                  onAction: () {
-                    // TODO: กด Get Return แล้วทำอะไรต่อ
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Get Return clicked')),
-                    );
-                  },
-                );
-              },
-            ),
+              ),
+            );
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: fetchReturnList,
           ),
         ],
       ),
 
-      // แถบล่าง
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: bottomIndex,
-      //   selectedItemColor: Colors.white,
-      //   unselectedItemColor: Colors.white70,
-      //   backgroundColor: maroon,
-      //   type: BottomNavigationBarType.fixed,
-      //   onTap: (i) => setState(() => bottomIndex = i),
-      //   items: const [
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.home_outlined),
-      //       label: 'Home',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.dashboard_customize_outlined),
-      //       label: 'Dashboard',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.edit_note_outlined),
-      //       label: 'Manage',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.history),
-      //       label: 'History',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.assignment_return_outlined),
-      //       label: 'Get Return',
-      //     ),
-      //   ],
-      // ),
+      body: SafeArea(
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator(color: maroon))
+            : hasError
+            ? const Center(
+                child: Text(
+                  '⚠️ Failed to load data. Please check your connection.',
+                  style: TextStyle(color: Colors.redAccent),
+                  textAlign: TextAlign.center,
+                ),
+              )
+            : Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        _Segment(
+                          label: 'Pending',
+                          selected: current == ReturnTab.pending,
+                          fillColor: gold,
+                          borderColor: gold,
+                          onTap: () =>
+                              setState(() => current = ReturnTab.pending),
+                        ),
+                        const SizedBox(width: 10),
+                        _Segment(
+                          label: 'Borrowed',
+                          selected: current == ReturnTab.borrowed,
+                          fillColor: Colors.blueGrey,
+                          borderColor: Colors.blueGrey,
+                          onTap: () =>
+                              setState(() => current = ReturnTab.borrowed),
+                        ),
+                        const SizedBox(width: 10),
+                        _Segment(
+                          label: 'Returned',
+                          selected: current == ReturnTab.returned,
+                          fillColor: Colors.green[700]!,
+                          borderColor: Colors.green[700]!,
+                          onTap: () =>
+                              setState(() => current = ReturnTab.returned),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: filteredItems.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No books found',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 16,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: filteredItems.length,
+                            itemBuilder: (context, i) {
+                              final it = filteredItems[i];
+                              final status = (it['status'] ?? '').toLowerCase();
+                              Color statusColor = gold;
+                              if (status == 'borrowed') {
+                                statusColor = Colors.blueGrey;
+                              } else if (status == 'returned') {
+                                statusColor = Colors.green[700]!;
+                              }
+
+                              return _ReturnCard(
+                                borrower: it['borrower'] ?? '-',
+                                book: it['book'] ?? '-',
+                                from: it['from'] ?? '-',
+                                to: it['to'] ?? '-',
+                                status: it['status'] ?? '-',
+                                statusColor: statusColor,
+                                image: it['image'] ?? '',
+                                onAction: status == 'borrowed'
+                                    ? () => confirmReturn(it['id'])
+                                    : null,
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
 
-
-/// ปุ่ม segment ด้านบน
 class _Segment extends StatelessWidget {
   const _Segment({
     required this.label,
     required this.selected,
     required this.fillColor,
     required this.borderColor,
-    required this.textStyle,
+    this.textColor = Colors.black,
     required this.onTap,
   });
 
@@ -178,38 +310,28 @@ class _Segment extends StatelessWidget {
   final bool selected;
   final Color fillColor;
   final Color borderColor;
-  final TextStyle textStyle;
+  final Color textColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      flex: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(22),
-          child: InkWell(
-            onTap: onTap,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? fillColor : Colors.transparent,
+            border: Border.all(color: borderColor, width: 1.8),
             borderRadius: BorderRadius.circular(22),
-            child: Container(
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? fillColor : Colors.transparent,
-                border: Border.all(color: borderColor, width: 1.8),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: textStyle.copyWith(
-                  color: selected ? Colors.white : textStyle.color,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
             ),
           ),
         ),
@@ -218,8 +340,6 @@ class _Segment extends StatelessWidget {
   }
 }
 
-
-/// การ์ด 1 ใบในลิสต์
 class _ReturnCard extends StatelessWidget {
   const _ReturnCard({
     required this.borrower,
@@ -228,7 +348,8 @@ class _ReturnCard extends StatelessWidget {
     required this.to,
     required this.status,
     required this.statusColor,
-    required this.onAction,
+    required this.image,
+    this.onAction,
   });
 
   final String borrower;
@@ -237,7 +358,8 @@ class _ReturnCard extends StatelessWidget {
   final String to;
   final String status;
   final Color statusColor;
-  final VoidCallback onAction;
+  final String image;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -248,63 +370,60 @@ class _ReturnCard extends StatelessWidget {
         border: Border.all(color: Colors.black87, width: 1.2),
         borderRadius: BorderRadius.circular(12),
       ),
+      margin: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          // ข้อมูลฝั่งซ้าย
           Expanded(
-            child: DefaultTextStyle(
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 13.5,
-                height: 1.35,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _line('Borrower : ', borrower),
-                  _line('Book : ', book),
-                  _line('From : ', from),
-                  _line('To : ', to),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Status :  ',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Borrower: $borrower',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text('Book: $book'),
+                Text('From: $from'),
+                Text('To: $to'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Status: '),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          status,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        status,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (onAction != null)
                   SizedBox(
                     width: 160,
                     height: 40,
                     child: OutlinedButton(
+                      onPressed: onAction,
                       style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          color: Colors.black87,
+                          width: 1.4,
+                        ),
                         backgroundColor: const Color(0xFFEDE9E8),
-                        side: const BorderSide(color: Colors.black87, width: 1.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
                       ),
-                      onPressed: onAction,
                       child: const Text(
                         'Get Return',
                         style: TextStyle(
@@ -313,19 +432,15 @@ class _ReturnCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  )
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
-
-          const SizedBox(width: 12),
-
-          // รูปหนังสือฝั่งขวา
+          const SizedBox(width: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: Image.asset(
-              'Picture/Book.png', // << ใช้ path ที่ให้มา
+            child: Image.network(
+              image,
               width: 80,
               height: 110,
               fit: BoxFit.cover,
@@ -336,27 +451,6 @@ class _ReturnCard extends StatelessWidget {
                 alignment: Alignment.center,
                 child: const Icon(Icons.image_not_supported_outlined),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _line(String label, String value) {
-    return RichText(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.w700,
-        ),
-        children: [
-          TextSpan(
-            text: value,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],

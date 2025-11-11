@@ -3,8 +3,14 @@ import 'staff_dashboard.dart';
 import 'staff_manage.dart';
 import 'staffhistory.dart';
 import 'staffgetreturn.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+import 'package:projectmobile_g9/Login-Regis/login.dart';
 
 void main() => runApp(const StaffBookStoreApp());
+
+const String baseUrl = 'http://192.168.49.1:3000';
 
 class StaffBookStoreApp extends StatelessWidget {
   const StaffBookStoreApp({super.key});
@@ -46,6 +52,8 @@ class StaffBookStoreScreen extends StatefulWidget {
 class _StaffBookStoreScreenState extends State<StaffBookStoreScreen> {
   int _currentIndex = 0;
   String _query = '';
+  final GlobalKey<_BookGridSectionState> _gridKey =
+      GlobalKey<_BookGridSectionState>();
 
   final _pages = const [
     _NavItem('Home', Icons.home_outlined),
@@ -65,13 +73,14 @@ class _StaffBookStoreScreenState extends State<StaffBookStoreScreen> {
               backgroundColor: Colors.white,
               title: _BookSearchBar(
                 onChanged: (v) => setState(() => _query = v),
+                gridKey: _gridKey,
               ),
             )
           : null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          _BookGridSection(query: _query),
+          _BookGridSection(key: _gridKey, query: _query),
           const StaffDash(),
           const StaffManage(),
           const StaffHistory(),
@@ -102,50 +111,94 @@ class _NavItem {
 }
 
 /// ---------------------- Banner + Grid (เดโม่) ----------------------
-class _BookGridSection extends StatelessWidget {
+class _BookGridSection extends StatefulWidget {
   final String query;
-  const _BookGridSection({required this.query});
+  const _BookGridSection({super.key, required this.query});
+
+  @override
+  State<_BookGridSection> createState() => _BookGridSectionState();
+}
+
+class _BookGridSectionState extends State<_BookGridSection> {
+  List<BookItem> books = [];
+  bool isLoading = true;
+  String selectedFilter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchBooks();
+  }
+
+  Future<void> fetchBooks() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/books'));
+      if (res.statusCode == 200) {
+        final List data = json.decode(res.body);
+        setState(() {
+          books = data.map((b) => BookItem.fromJson(b)).toList();
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to fetch books');
+      }
+    } catch (e) {
+      print('❌ Error fetching books: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  void setFilter(String newFilter) {
+    setState(() {
+      selectedFilter = newFilter;
+      // ✅ ไม่เรียก fetchBooks() ใหม่
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final list = _bookData
-        .where((b) => b.title.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    return isLoading
+        ? const Center(
+            child: CircularProgressIndicator(color: Color(0xFF7A1B1B)),
+          )
+        : RefreshIndicator(
+            color: const Color(0xFF7A1B1B), // สีวงกลมโหลด
+            onRefresh: fetchBooks, // ✅ เรียกฟังก์ชันโหลดใหม่
+            child: CustomScrollView(
+              physics:
+                  const AlwaysScrollableScrollPhysics(), // ✅ ให้ดึงลงได้เสมอ
+              slivers: [
+                // ✅ Banner ส่วนบน (คงที่)
+                SliverToBoxAdapter(
+                  child: AspectRatio(
+                    aspectRatio: 16 / 7,
+                    child: Container(
+                      margin: const EdgeInsets.all(12),
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.black12,
+                      ),
+                      child: Image.network(
+                        'https://picsum.photos/seed/bookstore-banner/1200/520',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: AspectRatio(
-            aspectRatio: 16 / 7,
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.black12,
-              ),
-              child: Image.network(
-                'https://picsum.photos/seed/bookstore-banner/1200/520',
-                fit: BoxFit.cover,
-              ),
+                // ✅ ส่วนแสดงหนังสือ
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  sliver: _BookGridView(
+                    books: books,
+                    query: widget.query,
+                    filter: selectedFilter,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 22,
-              crossAxisSpacing: 18,
-              childAspectRatio: 0.70,
-            ),
-            itemCount: list.length,
-            itemBuilder: (_, i) => _BookItemCard(book: list[i]),
-          ),
-        ),
-      ],
-    );
+          );
   }
 }
 
@@ -153,66 +206,115 @@ class _BookGridSection extends StatelessWidget {
 enum BookStatus { available, borrow, disable, pendingReturn }
 
 class BookItem {
+  final int id;
   final String title;
-  final String coverAsset;
-  final BookStatus status;
+  final String author;
+  final String category;
+  final String description;
+  final String image;
+  final String status;
 
   const BookItem({
+    required this.id,
     required this.title,
-    required this.coverAsset,
+    required this.author,
+    required this.category,
+    required this.description,
+    required this.image,
     required this.status,
   });
+
+  factory BookItem.fromJson(Map<String, dynamic> json) {
+    return BookItem(
+      id: json['id'],
+      title: json['title'] ?? '',
+      author: json['author'] ?? '',
+      category: json['category'] ?? '',
+      description: json['description'] ?? '',
+      image: json['image'] ?? '',
+      status: json['status'] ?? 'unknown',
+    );
+  }
 }
 
 class _BookItemCard extends StatelessWidget {
   final BookItem book;
   const _BookItemCard({required this.book});
 
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return Colors.green;
+      case 'borrowed':
+        return Colors.orange;
+      case 'pending':
+        return Colors.blueGrey;
+      case 'disable':
+        return Colors.grey;
+      default:
+        return Colors.black45;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (book.status) {
-      BookStatus.available => ('Status : Available', Colors.green),
-      BookStatus.borrow => ('Status : Borrow', Colors.orange),
-      BookStatus.disable => ('Status : Disable', Colors.grey),
-      BookStatus.pendingReturn => ('Status : Pending Return', Colors.blueGrey),
-    };
+    final color = getStatusColor(book.status);
 
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text(book.title),
-            content: Text(label),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(book.title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Author: ${book.author}'),
+                  const SizedBox(height: 6),
+                  Text('Category: ${book.category}'),
+                  const SizedBox(height: 6),
+                  Text('Status: ${book.status}'),
+                  const SizedBox(height: 6),
+                  Text(
+                    book.description.isNotEmpty
+                        ? book.description
+                        : 'No description available.',
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+              actions: [
+                TextButton(
+                  // ✅ ใช้ dialogContext แทน context
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ปกหนังสือ
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.black12,
                   image: DecorationImage(
-                    image: AssetImage(book.coverAsset),
+                    image: NetworkImage('$baseUrl/uploads/${book.image}'),
+                    onError: (error, stackTrace) {
+                      debugPrint('⚠️ Image load failed: $error');
+                    },
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            // ชื่อเรื่อง
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Text(
@@ -227,7 +329,6 @@ class _BookItemCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            // สถานะ
             Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -240,10 +341,10 @@ class _BookItemCard extends StatelessWidget {
                   border: Border.all(color: color.withOpacity(0.35)),
                 ),
                 child: Text(
-                  label,
+                  book.status,
                   style: TextStyle(
                     fontSize: 12,
-                    color: color.shade700,
+                    color: color,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -257,10 +358,59 @@ class _BookItemCard extends StatelessWidget {
   }
 }
 
+class _BookGridView extends StatelessWidget {
+  final List<BookItem> books;
+  final String query;
+  final String filter;
+
+  const _BookGridView({
+    required this.books,
+    required this.query,
+    required this.filter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredBooks = books.where((b) {
+      final matchesQuery = b.title.toLowerCase().contains(query.toLowerCase());
+      final matchesFilter =
+          filter == 'All' || b.status.toLowerCase() == filter.toLowerCase();
+      return matchesQuery && matchesFilter;
+    }).toList();
+
+    if (filteredBooks.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.only(top: 40),
+            child: Text('No books found'),
+          ),
+        ),
+      );
+    }
+
+    return SliverGrid.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 22,
+        crossAxisSpacing: 18,
+        childAspectRatio: 0.70,
+      ),
+      itemCount: filteredBooks.length,
+      itemBuilder: (_, i) => _BookItemCard(book: filteredBooks[i]),
+    );
+  }
+}
+
 /// ---------------------- Search Bar ----------------------
 class _BookSearchBar extends StatelessWidget {
   final ValueChanged<String> onChanged;
-  const _BookSearchBar({required this.onChanged});
+  final GlobalKey<_BookGridSectionState> gridKey;
+
+  const _BookSearchBar({
+    required this.onChanged,
+    required this.gridKey, // ✅ เพิ่มตรงนี้
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +423,151 @@ class _BookSearchBar extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 8),
-          IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.menu), // เปลี่ยนเป็น burger icon
+            onPressed: () async {
+              final sectionState = gridKey.currentState;
+              if (sectionState == null) return;
+
+              // เปิด bottom sheet แบบใหม่ที่มีทั้ง Filter และ Logout
+              final result = await showModalBottomSheet<String>(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (ctx) {
+                  String tempFilter = sectionState.selectedFilter;
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Menu',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ปุ่ม Filter
+                        ListTile(
+                          leading: const Icon(Icons.filter_list),
+                          title: const Text('Filter Books'),
+                          onTap: () async {
+                            Navigator.pop(ctx); // ปิดก่อนเปิด filter sheet ใหม่
+                            final newFilter =
+                                await showModalBottomSheet<String>(
+                                  context: context,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(16),
+                                    ),
+                                  ),
+                                  builder: (ctx2) {
+                                    return Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Wrap(
+                                        spacing: 10,
+                                        children: [
+                                          for (final status in [
+                                            'All',
+                                            'Available',
+                                            'Borrowed',
+                                            'Pending',
+                                            'Disable',
+                                          ])
+                                            ChoiceChip(
+                                              label: Text(status),
+                                              selected: tempFilter == status,
+                                              selectedColor:
+                                                  Colors.red.shade100,
+                                              labelStyle: TextStyle(
+                                                color: tempFilter == status
+                                                    ? Colors.black
+                                                    : Colors.grey[700],
+                                                fontWeight: tempFilter == status
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                              onSelected: (_) {
+                                                Navigator.pop(ctx2, status);
+                                              },
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                            if (newFilter != null && context.mounted) {
+                              sectionState.setFilter(newFilter);
+                            }
+                          },
+                        ),
+
+                        const Divider(height: 1),
+
+                        // ปุ่ม Logout
+                        ListTile(
+                          leading: const Icon(Icons.logout, color: Colors.red),
+                          title: const Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx); // ปิด sheet
+                            showDialog(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Confirm Logout'),
+                                content: const Text(
+                                  'Are you sure you want to log out?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pop(); // ปิด dialog
+                                      Future.delayed(
+                                        const Duration(milliseconds: 150),
+                                        () {
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).pushAndRemoveUntil(
+                                            MaterialPageRoute(
+                                              builder: (_) => const LoginPage(),
+                                            ),
+                                            (route) => false,
+                                          );
+                                        },
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Logout',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           const SizedBox(width: 4),
           Expanded(
             child: TextField(
@@ -308,27 +602,3 @@ class _FeaturePlaceholder extends StatelessWidget {
     );
   }
 }
-
-/// ---------------------- Sample book data (assets) ----------------------
-const _bookData = <BookItem>[
-  BookItem(
-    title: 'เรือนแรมสีแดง',
-    coverAsset: 'assets/images/1.jpg',
-    status: BookStatus.disable,
-  ),
-  BookItem(
-    title: 'แปดขุนเขา',
-    coverAsset: 'assets/images/2.jpg',
-    status: BookStatus.borrow,
-  ),
-  BookItem(
-    title: 'เพราะรักบานในทุ่งดอกไม้',
-    coverAsset: 'assets/images/qqq.jpg',
-    status: BookStatus.available,
-  ),
-  BookItem(
-    title: 'หนูน้อยหมวกแดงพบศพระหว่างเดินทาง',
-    coverAsset: 'assets/images/4.jpg',
-    status: BookStatus.available,
-  ),
-];

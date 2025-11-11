@@ -174,52 +174,6 @@ app.post('/borrow', (req, res) => {
   });
 });
 
-
-// ✅ Approve borrow request (for staff/admin)
-app.put('/approve/:id', (req, res) => {
-  const borrowId = req.params.id;
-  const approverId = req.body.approverId || null; // optional
-
-  // 1️⃣ อัปเดต borrowings เป็น borrowed
-  const updateBorrow = `
-    UPDATE borrowings 
-    SET status = 'borrowed', approval_status = 'approved', approved_by = ?, borrow_date = NOW()
-    WHERE id = ? AND status = 'pending'
-  `;
-
-  db.query(updateBorrow, [approverId, borrowId], (err, result) => {
-    if (err) {
-      console.error('❌ Error updating borrow status:', err);
-      return res.status(500).json({ message: 'Update failed' });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'No pending request found' });
-    }
-
-    // 2️⃣ ดึง book_id เพื่ออัปเดตตาราง books
-    db.query('SELECT book_id FROM borrowings WHERE id = ?', [borrowId], (err2, rows) => {
-      if (err2 || rows.length === 0) {
-        console.error('❌ Error fetching book_id:', err2);
-        return res.status(500).json({ message: 'Book fetch failed' });
-      }
-
-      const bookId = rows[0].book_id;
-
-      // 3️⃣ อัปเดตสถานะหนังสือให้เป็น borrowed
-      db.query('UPDATE books SET status = "borrowed" WHERE id = ?', [bookId], (err3) => {
-        if (err3) {
-          console.error('❌ Error updating book status:', err3);
-          return res.status(500).json({ message: 'Book status update failed' });
-        }
-
-        console.log(`✅ Borrow ${borrowId} approved -> book ${bookId} borrowed`);
-        res.json({ message: 'Borrow request approved successfully' });
-      });
-    });
-  });
-});
-
 // ---------------- BORROW STATUS ----------------
 app.get('/borrow/:userId', (req, res) => {
   const { userId } = req.params;
@@ -358,7 +312,318 @@ app.get('/api/history/:studentId', (req, res) => {
   });
 });
 
-app.use('/images', express.static('assets/images'));
+
+
+// ===================== STAFF =====================
+// ---------------- ADD NEW BOOK ----------------
+app.post('/books/add', (req, res) => {
+  const { title, author, category, description, image, status } = req.body;
+  if (!title) return res.status(400).json({ message: 'Title is required' });
+
+  const sql = `
+    INSERT INTO books (title, author, category, description, image, STATUS)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  db.query(
+    sql,
+    [title, author, category, description, image || 'default.png', status || 'available'],
+    (err, result) => {
+      if (err) {
+        console.error('❌ Error adding book:', err);
+        return res.status(500).json({ message: 'Failed to add book' });
+      }
+      res.json({ message: 'Book added successfully', id: result.insertId });
+    }
+  );
+});
+
+// ---------------- UPDATE BOOK ----------------
+app.put('/books/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, author, category, description, status } = req.body;
+  const sql = `
+    UPDATE books
+    SET title = ?, author = ?, category = ?, description = ?, STATUS = ?
+    WHERE id = ?
+  `;
+  db.query(sql, [title, author, category, description, status, id], (err) => {
+    if (err) {
+      console.error('❌ Error updating book:', err);
+      return res.status(500).json({ message: 'Update failed' });
+    }
+    res.json({ message: 'Book updated successfully' });
+  });
+});
+
+// ---------------- DELETE BOOK ----------------
+app.delete('/books/:id', (req, res) => {
+  const { id } = req.params;
+  const sql = 'DELETE FROM books WHERE id = ?';
+  db.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error('❌ Error deleting book:', err);
+      return res.status(500).json({ message: 'Delete failed' });
+    }
+    if (result.affectedRows === 0)
+      return res.status(404).json({ message: 'Book not found' });
+    res.json({ message: 'Book deleted successfully' });
+  });
+});
+
+// ✅ Approve borrow request (for staff/admin)
+app.put('/approve/:id', (req, res) => {
+  const borrowId = req.params.id;
+  const approverId = req.body.approverId || null; // optional
+
+  // 1️⃣ อัปเดต borrowings เป็น borrowed
+  const updateBorrow = `
+    UPDATE borrowings 
+    SET status = 'borrowed', approval_status = 'approved', approved_by = ?, borrow_date = NOW()
+    WHERE id = ? AND status = 'pending'
+  `;
+
+  db.query(updateBorrow, [approverId, borrowId], (err, result) => {
+    if (err) {
+      console.error('❌ Error updating borrow status:', err);
+      return res.status(500).json({ message: 'Update failed' });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'No pending request found' });
+    }
+
+    // 2️⃣ ดึง book_id เพื่ออัปเดตตาราง books
+    db.query('SELECT book_id FROM borrowings WHERE id = ?', [borrowId], (err2, rows) => {
+      if (err2 || rows.length === 0) {
+        console.error('❌ Error fetching book_id:', err2);
+        return res.status(500).json({ message: 'Book fetch failed' });
+      }
+
+      const bookId = rows[0].book_id;
+
+      // 3️⃣ อัปเดตสถานะหนังสือให้เป็น borrowed
+      db.query('UPDATE books SET status = "borrowed" WHERE id = ?', [bookId], (err3) => {
+        if (err3) {
+          console.error('❌ Error updating book status:', err3);
+          return res.status(500).json({ message: 'Book status update failed' });
+        }
+
+        console.log(`✅ Borrow ${borrowId} approved -> book ${bookId} borrowed`);
+        res.json({ message: 'Borrow request approved successfully' });
+      });
+    });
+  });
+});
+
+// ✅ patch status
+app.patch('/books/:id/status', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const sql = 'UPDATE books SET STATUS = ? WHERE id = ?';
+  db.query(sql, [status, id], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Database error' });
+    res.json({ message: `Book status updated to ${status}` });
+  });
+});
+
+// ✅ API: Dashboard summary
+app.get("/api/dashboard/summary", (req, res) => {
+  const sql = `
+    SELECT 
+      SUM(CASE WHEN STATUS = 'available' THEN 1 ELSE 0 END) AS available,
+      SUM(CASE WHEN STATUS = 'borrowed' THEN 1 ELSE 0 END) AS borrowed,
+      SUM(CASE WHEN STATUS = 'pending' THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN STATUS = 'disabled' THEN 1 ELSE 0 END) AS disabled,
+      COUNT(*) AS total
+    FROM books;
+  `;
+
+  db.query(sql, (err, result) => {
+    if (err) {
+      console.error("❌ Error fetching dashboard summary:", err);
+      return res.status(500).json({ message: "Database error" });
+    }
+
+    const row = result && result.length > 0 ? result[0] : {};
+
+    // ✅ แปลงค่าทั้งหมดเป็น number ด้วย Number()
+    res.json({
+      available: Number(row.available) || 0,
+      borrowed: Number(row.borrowed) || 0,
+      pending: Number(row.pending) || 0,
+      disabled: Number(row.disabled) || 0,
+      total: Number(row.total) || 1,
+    });
+  });
+});
+
+// ✅ API: Staff Borrow History (ดูทุกการยืมคืน)
+app.get('/api/staff/history', (req, res) => {
+  const sql = `
+    SELECT 
+      b.title AS book,
+      br.borrow_date,
+      br.return_date,
+      u.username AS borrower,
+      COALESCE(a.username, '-') AS approver,
+      COALESCE(r.username, '-') AS receiver,
+      br.STATUS AS status,
+      b.image
+    FROM borrowings br
+    JOIN books b ON br.book_id = b.id
+    JOIN users u ON br.user_id = u.id
+    LEFT JOIN users a ON br.approved_by = a.id
+    LEFT JOIN users r ON br.received_by = r.id
+    ORDER BY br.borrow_date DESC
+  `;
+
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching staff history:', err);
+      return res.status(500).json({ message: 'Error fetching staff history' });
+    }
+
+    const BASE_URL = 'http://192.168.49.1:3000';
+    const formatted = rows.map(item => ({
+      book: item.book,
+      borrowDate: item.borrow_date
+        ? new Date(item.borrow_date).toLocaleDateString('th-TH')
+        : '-',
+      returnDate: item.return_date
+        ? new Date(item.return_date).toLocaleDateString('th-TH')
+        : '-',
+      borrower: item.borrower,
+      approver: item.approver,
+      receiver: item.receiver,
+      status: item.status || 'pending',
+      image: `${BASE_URL}/images/${item.image || 'default.png'}`
+    }));
+
+    res.json(formatted);
+  });
+});
+
+// ✅ API: Get return list (pending/borrowed)
+app.get('/api/staff/getreturn', (req, res) => {
+  const sql = `
+    SELECT 
+      br.id AS borrow_id,
+      u.username AS borrower,
+      b.title AS book,
+      br.borrow_date,
+      br.return_date,
+      br.STATUS AS status,
+      b.image
+    FROM borrowings br
+    JOIN users u ON br.user_id = u.id
+    JOIN books b ON br.book_id = b.id
+    WHERE br.STATUS IN ('pending', 'borrowed')
+    ORDER BY br.borrow_date DESC
+  `;
+
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error('❌ Error fetching getreturn list:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
+
+    const BASE_URL = 'http://192.168.49.1:3000';
+    const formatted = rows.map(item => ({
+      id: item.borrow_id,
+      borrower: item.borrower,
+      book: item.book,
+      from: item.borrow_date
+        ? new Date(item.borrow_date).toLocaleDateString('th-TH')
+        : '-',
+      to: item.return_date
+        ? new Date(item.return_date).toLocaleDateString('th-TH')
+        : '-',
+      status: item.status,
+      image: `${BASE_URL}/images/${item.image || 'default.png'}`
+    }));
+
+    res.json(formatted);
+  });
+});
+
+// ✅ API: Confirm return (staff click “Get Return”)
+app.put('/api/staff/return/:id', (req, res) => {
+  const { id } = req.params;
+  const staffId = req.body.received_by || null; // optional
+
+  const sql = `
+    UPDATE borrowings
+    SET STATUS = 'returned', approval_status = 'approved', received_by = ?
+    WHERE id = ? AND STATUS = 'borrowed'
+  `;
+
+  db.query(sql, [staffId, id], (err, result) => {
+    if (err) {
+      console.error('❌ Error updating return:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'No borrowed record found' });
+    }
+
+    // ✅ คืนสถานะหนังสือให้ available
+    db.query(
+      'UPDATE books b JOIN borrowings br ON b.id = br.book_id SET b.STATUS = "available" WHERE br.id = ?',
+      [id]
+    );
+
+    console.log(`✅ Borrow ID ${id} marked as returned`);
+    res.json({ message: 'Book return confirmed successfully' });
+  });
+});
+
+
+
+// ============ UPLOAD IMAGE API ============ //
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// 📂 ตั้งค่าเก็บไฟล์ในโฟลเดอร์ uploads/
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('📁 Created uploads folder automatically');
+}
+
+// ✅ ตั้งค่า multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir); // ใช้ path ที่สร้างไว้ด้านบน
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  },
+});
+
+const upload = multer({ storage });
+
+// ✅ endpoint อัปโหลด
+app.post('/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  const fileUrl = `http://192.168.49.1:3000/uploads/${req.file.filename}`;
+  res.json({
+    message: 'Upload success',
+    filename: req.file.filename,
+    url: fileUrl,
+  });
+});
+
+// ✅ เปิด static path
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/images', express.static(path.join(__dirname, 'uploads')));
+// app.use('/images', express.static('assets/images'));
 
 app.listen(3000, () => {
   console.log("🚀 Server running on port 3000");
