@@ -47,9 +47,18 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
+        // ✅ ตรวจว่ามี error message จาก backend ไหม
+        if (data['error'] != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(data['error'])));
+          return;
+        }
+
         final role = data['role'];
         final username = data['username'];
-        final userId = data['id']; // ✅ ประกาศตัวแปรนี้เพิ่ม
+        final userId = data['id'];
 
         ScaffoldMessenger.of(
           context,
@@ -63,18 +72,19 @@ class _LoginPageState extends State<LoginPage> {
         } else if (role == 'lecturer') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => LectHome(userId: userId)
-            ),
+            MaterialPageRoute(builder: (_) => LectHome(userId: userId)),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => StudentHome(userId: userId), // ✅ ส่งต่อไปที่นี่
-            ),
+            MaterialPageRoute(builder: (_) => StudentHome(userId: userId)),
           );
         }
+      } else {
+        // ❌ ถ้า statusCode ไม่ใช่ 200
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Invalid username or password')));
       }
     } catch (e) {
       setState(() => isLoading = false);
