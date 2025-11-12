@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'model.dart';
 import 'pedingApprove.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
+const String baseUrl = 'http://192.168.49.1:3000';
 const Color kPrimaryColor = Color(0xFF8A0E0E);
 const Color kBackgroundColor = Color(0xFFF5F5F5);
 
@@ -15,6 +18,7 @@ class LecturerDashboardScreen extends StatefulWidget {
 
 class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
   List<Book> _booksWithRequests = [];
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -22,23 +26,37 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
     _fetchBookRequests();
   }
 
-  void _fetchBookRequests() {
-    final pendingBookIds = mockRequests
-        .where((req) => req.status == 'pending')
-        .map((req) => req.bookId)
-        .toSet();
+  Future<void> _fetchBookRequests() async {
+    setState(() => isLoading = true);
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/staff/getreturn'));
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        final pendingBooks =
+            data.where((item) => item['status'] == 'pending').toList();
 
-    setState(() {
-      _booksWithRequests = mockBooks
-          .where((book) => pendingBookIds.contains(book.id))
-          .toList();
-    });
-  }
-
-  int _getPendingRequestCount(String bookId) {
-    return mockRequests
-        .where((req) => req.bookId == bookId && req.status == 'pending')
-        .length;
+        setState(() {
+          _booksWithRequests = pendingBooks
+              .map(
+                (b) => Book(
+                  id: b['id'],
+                  title: b['book'],
+                  author: b['borrower'],
+                  imageUrl: b['image'],
+                  status: b['status'],
+                ),
+              )
+              .toList();
+          isLoading = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Refreshed successfully!')),
+      );
+    } catch (e) {
+      print('❌ Error fetching pending requests: $e');
+      setState(() => isLoading = false);
+    }
   }
 
   @override
@@ -51,100 +69,79 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
           style: TextStyle(color: Colors.white),
         ),
         backgroundColor: kPrimaryColor,
-        elevation: 4,
-      ),
-      body: _booksWithRequests.isEmpty
-          ? Center(
-              child: Text(
-                "No pending book requests.",
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16.0),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 16.0,
-                mainAxisSpacing: 16.0,
-                childAspectRatio: 0.65,
-              ),
-              itemCount: _booksWithRequests.length,
-              itemBuilder: (context, index) {
-                final book = _booksWithRequests[index];
-                final requestCount = _getPendingRequestCount(book.id);
-                return _buildBookGridItem(context, book, requestCount);
-              },
-            ),
-    );
-  }
-
-  Widget _buildBookGridItem(BuildContext context, Book book, int requestCount) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PendingApprovalScreen(book: book),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _fetchBookRequests, // ✅ ปุ่มรีเฟรช
+            tooltip: "Refresh",
           ),
-        ).then((_) {
-          _fetchBookRequests();
-        });
-      },
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Image.network(
-                    book.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.book, size: 50, color: Colors.grey),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    book.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: Colors.black87,
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _fetchBookRequests, // ✅ ปัดลงเพื่อรีเฟรช
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _booksWithRequests.isEmpty
+                ? const Center(child: Text("No pending requests"))
+                : GridView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16.0),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16.0,
+                      mainAxisSpacing: 16.0,
+                      childAspectRatio: 0.7,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
+                    itemCount: _booksWithRequests.length,
+                    itemBuilder: (context, index) {
+                      final book = _booksWithRequests[index];
+                      return InkWell(
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  PendingApprovalScreen(book: book),
+                            ),
+                          );
+                          _fetchBookRequests(); // โหลดใหม่ตอนกลับ
+                        },
+                        child: Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Image.network(
+                                  book.imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.book,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text(
+                                  book.title,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ],
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: kPrimaryColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Text(
-                  requestCount.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

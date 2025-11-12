@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+const String baseUrl = 'http://192.168.49.1:3000';
+
 class HistoryItem {
   final String book;
   final String borrowDate;
@@ -186,7 +188,9 @@ class _StudentHistoryState extends State<StudentHistory> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: Image.network(
-                          item.image,
+                          item.image.startsWith('http')
+                              ? item.image
+                              : '$baseUrl/uploads/${item.image}', // ✅ ถ้าไม่ใช่ http ให้ต่อ URL เอง
                           width: 80,
                           height: 80,
                           fit: BoxFit.cover,

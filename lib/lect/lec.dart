@@ -3,13 +3,12 @@ import 'package:projectmobile_g9/lect/lectdash.dart';
 import 'package:projectmobile_g9/lect/lecthistory.dart';
 import 'package:projectmobile_g9/lect/lectprofile.dart';
 import 'package:projectmobile_g9/lect/lecturer_dashboard_screen.dart';
-
-void main() {
-  runApp(const LectHomeApp());
-}
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class LectHomeApp extends StatelessWidget {
-  const LectHomeApp({super.key});
+  final int userId;
+  const LectHomeApp({super.key, required this.userId});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +20,7 @@ class LectHomeApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const LectHome(),
+      home: LectHome(userId: userId),
     );
   }
 }
@@ -30,20 +29,24 @@ class LectHomeApp extends StatelessWidget {
 /// 📚 หน้าหลักของอาจารย์ (LectHome)
 /// ---------------------------------------------------------------------
 class LectHome extends StatefulWidget {
-  const LectHome({super.key});
+  final int userId;
+  const LectHome({super.key, required this.userId});
 
   @override
   State<LectHome> createState() => _LectHomeState();
 }
 
 class _LectHomeState extends State<LectHome> {
-  // สีตามดีไซน์รูป
-  static const Color kBar = Color(0xFF7A1B1B);     // พื้นหลังแท็บ
-  static const Color kActive = Color(0xFF5C1313);  // วงรีเมื่อเลือก
-  static const Color kTextIcon = Colors.white;     // ไอคอน/ข้อความ
+  final GlobalKey<_BookGridSectionState> _bookGridKey =
+      GlobalKey<_BookGridSectionState>();
+
+  static const Color kBar = Color(0xFF7A1B1B); // พื้นหลังแท็บ
+  static const Color kActive = Color(0xFF5C1313); // วงรีเมื่อเลือก
+  static const Color kTextIcon = Colors.white; // ไอคอน/ข้อความ
 
   int _currentIndex = 0;
   String _query = '';
+  String _selectedFilter = 'All'; // ✅ filter เริ่มต้น
 
   @override
   Widget build(BuildContext context) {
@@ -56,23 +59,33 @@ class _LectHomeState extends State<LectHome> {
     ];
 
     return Scaffold(
-      // ✅ แสดง Search เฉพาะหน้า Home
       appBar: _currentIndex == 0
           ? AppBar(
               automaticallyImplyLeading: false,
               titleSpacing: 0,
-              title: _BookSearchBar(onChanged: (v) => setState(() => _query = v)),
+              title: _BookSearchBar(
+                onChanged: (v) => setState(() => _query = v),
+                onFilterChanged: (status) {
+                  setState(() => _selectedFilter = status);
+                  _bookGridKey.currentState?.setFilter(status);
+                },
+                selectedFilter: _selectedFilter,
+              ),
             )
           : null,
 
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          _BookGridSection(query: _query),
+          _BookGridSection(
+            key: _bookGridKey,
+            query: _query,
+            selectedFilter: _selectedFilter,
+          ),
           const LecturerDashboardScreen(),
           const Lectdash(),
           const Lecthistory(),
-          const LectProfile(),
+          Lectprofile(userId: widget.userId),
         ],
       ),
 
@@ -91,8 +104,10 @@ class _LectHomeState extends State<LectHome> {
               onTap: () => setState(() => _currentIndex = i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isActive ? kActive : Colors.transparent,
                   borderRadius: BorderRadius.circular(44),
@@ -130,51 +145,231 @@ class _BottomNavItem {
 /// ---------------------------------------------------------------------
 /// 🏷️ Section: Banner + Grid
 /// ---------------------------------------------------------------------
-class _BookGridSection extends StatelessWidget {
+class _BookGridSection extends StatefulWidget {
   final String query;
-  const _BookGridSection({required this.query});
+  final String selectedFilter;
+  const _BookGridSection({
+    Key? key,
+    required this.query,
+    required this.selectedFilter,
+  }) : super(key: key);
+
+  @override
+  State<_BookGridSection> createState() => _BookGridSectionState();
+}
+
+class _BookGridSectionState extends State<_BookGridSection> {
+  List<dynamic> books = [];
+  bool isLoading = true;
+  String _selectedFilter = 'All'; // ✅ ตัวกรอง
+
+  static const String baseUrl = 'http://192.168.49.1:3000';
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFilter = widget.selectedFilter;
+    fetchBooks();
+  }
+
+  void setFilter(String status) {
+    setState(() {
+      _selectedFilter = status;
+    });
+  }
+
+  Future<void> fetchBooks() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/books'));
+      if (res.statusCode == 200) {
+        setState(() {
+          books = json.decode(res.body);
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load books');
+      }
+    } catch (e) {
+      print('❌ Error fetching books: $e');
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _bookDataList
-        .where((b) => b.title.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final filtered = books.where((b) {
+      final titleMatch = b['title'].toString().toLowerCase().contains(
+        widget.query.toLowerCase(),
+      );
+      final status = (b['status'] ?? '').toString().toLowerCase();
+      final filterMatch =
+          _selectedFilter == 'All' || status == _selectedFilter.toLowerCase();
+      return titleMatch && filterMatch;
+    }).toList();
 
-    return CustomScrollView(
-      slivers: [
-        // Banner ด้านบน
-        SliverToBoxAdapter(
-          child: AspectRatio(
-            aspectRatio: 16 / 7,
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.black12,
-              ),
-              child: Image.network(
-                'https://picsum.photos/seed/bookstore-banner/1200/520',
-                fit: BoxFit.cover,
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF7A1B1B)),
+      );
+    }
+
+    // ✅ ครอบ CustomScrollView ด้วย RefreshIndicator
+    return RefreshIndicator(
+      onRefresh: fetchBooks, // ดึงข้อมูลใหม่จาก API
+      color: const Color(0xFF7A1B1B),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: AspectRatio(
+              aspectRatio: 16 / 7,
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Image.network(
+                  'https://picsum.photos/seed/bookstore-banner/1200/520',
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
-        ),
-        // กริดหนังสือ
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 22,
-              crossAxisSpacing: 18,
-              childAspectRatio: 0.70,
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            sliver: SliverGrid.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 22,
+                crossAxisSpacing: 18,
+                childAspectRatio: 0.70,
+              ),
+              itemCount: filtered.length,
+              itemBuilder: (context, i) => _BookItemCard(book: filtered[i]),
             ),
-            itemCount: filtered.length,
-            itemBuilder: (context, i) => _BookItemCard(book: filtered[i]),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------
+/// 🔍 Search Bar พร้อม Filter BottomSheet
+/// ---------------------------------------------------------------------
+class _BookSearchBar extends StatelessWidget {
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onFilterChanged;
+  final String selectedFilter;
+  const _BookSearchBar({
+    required this.onChanged,
+    required this.onFilterChanged,
+    required this.selectedFilter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.black26),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () async {
+              final result = await showModalBottomSheet<String>(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (ctx) {
+                  String tempFilter = selectedFilter;
+
+                  return StatefulBuilder(
+                    builder: (context, setModalState) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Filter by Status',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              children: [
+                                for (final status in [
+                                  'All',
+                                  'Available',
+                                  'Borrowed',
+                                  'Pending',
+                                  'Disabled',
+                                ])
+                                  ChoiceChip(
+                                    label: Text(status),
+                                    selected: tempFilter == status,
+                                    selectedColor: Colors.red.shade100,
+                                    labelStyle: TextStyle(
+                                      color: tempFilter == status
+                                          ? Colors.black
+                                          : Colors.grey[700],
+                                      fontWeight: tempFilter == status
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    onSelected: (_) {
+                                      setModalState(() => tempFilter = status);
+                                      Future.delayed(
+                                        const Duration(milliseconds: 200),
+                                        () {
+                                          Navigator.pop(ctx, status);
+                                        },
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+
+              if (result != null && context.mounted) {
+                onFilterChanged(result);
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              onChanged: onChanged,
+              decoration: const InputDecoration(
+                hintText: 'SEARCH',
+                border: InputBorder.none,
+              ),
+              textInputAction: TextInputAction.search,
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Icon(Icons.search),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -182,31 +377,26 @@ class _BookGridSection extends StatelessWidget {
 /// ---------------------------------------------------------------------
 /// 📖 Book Card
 /// ---------------------------------------------------------------------
-enum BookStatus { available, borrow, disable, pendingReturn }
-
-class Book {
-  final String title;
-  final String coverPath;
-  final BookStatus status;
-
-  const Book({
-    required this.title,
-    required this.coverPath,
-    required this.status,
-  });
-}
-
 class _BookItemCard extends StatelessWidget {
-  final Book book;
+  final Map<String, dynamic> book;
   const _BookItemCard({required this.book});
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (book.status) {
-      BookStatus.available => ('Status : Available', Colors.green),
-      BookStatus.borrow => ('Status : Borrow', Colors.orange),
-      BookStatus.disable => ('Status : Disable', Colors.grey),
-      BookStatus.pendingReturn => ('Status : Pending Return', Colors.blueGrey),
+    final String title = book['title'] ?? '-';
+    final String author = book['author'] ?? '-';
+    final String status = (book['status'] ?? '').toLowerCase();
+    final String description = (book['description'] ?? '').toString().trim();
+    final String imagePath =
+        'http://192.168.49.1:3000/uploads/${book['image'] ?? 'default.png'}';
+
+    // 🔹 สีและ label ตามสถานะ
+    final (label, color) = switch (status) {
+      'available' => ('Available', Colors.green),
+      'borrowed' => ('Borrowed', Colors.orange),
+      'pending' => ('Pending Approve', Colors.blueGrey),
+      'disabled' => ('Disabled', Colors.red),
+      _ => ('Unknown', Colors.grey),
     };
 
     return Material(
@@ -214,19 +404,145 @@ class _BookItemCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text(book.title),
-            content: Text(label),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
-          ),
-        ),
+              titlePadding: EdgeInsets.zero,
+              title: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+                child: Image.network(
+                  imagePath,
+                  height: 180,
+                  width: MediaQuery.of(ctx).size.width * 0.9,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 180,
+                    color: Colors.black12,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.broken_image,
+                      size: 50,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 🏷️ ชื่อหนังสือ
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ✍️ ผู้แต่ง
+                    Text(
+                      'Author: ${author.isEmpty ? "-" : author}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 📘 สถานะ
+                    Row(
+                      children: [
+                        const Text(
+                          'Status: ',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: color.withOpacity(0.35)),
+                          ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: color.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 📄 คำอธิบาย
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description.isNotEmpty
+                          ? description
+                          : 'No description available.',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                Align(
+                  alignment: Alignment.center,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7A1B1B),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -236,29 +552,28 @@ class _BookItemCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   color: Colors.black12,
                   image: DecorationImage(
-                    image: AssetImage(book.coverPath),
+                    image: NetworkImage(imagePath),
                     fit: BoxFit.cover,
+                    onError: (_, __) {},
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                book.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Center(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -281,95 +596,3 @@ class _BookItemCard extends StatelessWidget {
     );
   }
 }
-
-/// ---------------------------------------------------------------------
-/// 🔍 Search Bar
-/// ---------------------------------------------------------------------
-class _BookSearchBar extends StatelessWidget {
-  final ValueChanged<String> onChanged;
-  const _BookSearchBar({required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.black26),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Menu tapped')),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: TextField(
-              onChanged: onChanged,
-              decoration: const InputDecoration(
-                hintText: 'SEARCH',
-                border: InputBorder.none,
-              ),
-              textInputAction: TextInputAction.search,
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Icon(Icons.search),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// ---------------------------------------------------------------------
-/// 🧩 Placeholder Pages
-/// ---------------------------------------------------------------------
-class _FeaturePlaceholder extends StatelessWidget {
-  final String title;
-  const _FeaturePlaceholder({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        title,
-        style: Theme.of(context)
-            .textTheme
-            .headlineMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-/// ---------------------------------------------------------------------
-/// 📚 Sample Data (Assets)
-/// ---------------------------------------------------------------------
-const _bookDataList = <Book>[
-  Book(
-    title: 'เรือนแรมสีแดง',
-    coverPath: 'assets/images/1.jpg',
-    status: BookStatus.disable,
-  ),
-  Book(
-    title: 'แปดขุนเขา',
-    coverPath: 'assets/images/2.jpg',
-    status: BookStatus.borrow,
-  ),
-  Book(
-    title: 'เพราะรักบานในทุ่งดอกไม้',
-    coverPath: 'assets/images/qqq.jpg',
-    status: BookStatus.available,
-  ),
-  Book(
-    title: 'หนูน้อยหมวกแดงพบศพระหว่างเดินทาง',
-    coverPath: 'assets/images/4.jpg',
-    status: BookStatus.available,
-  ),
-];

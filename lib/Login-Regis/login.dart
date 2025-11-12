@@ -63,7 +63,9 @@ class _LoginPageState extends State<LoginPage> {
         } else if (role == 'lecturer') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const LectHome()),
+            MaterialPageRoute(
+              builder: (_) => LectHome(userId: userId)
+            ),
           );
         } else {
           Navigator.pushReplacement(

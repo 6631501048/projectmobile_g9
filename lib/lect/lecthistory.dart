@@ -1,112 +1,165 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-void main() {
-  runApp(const MyApp());
-}
+const String baseUrl = 'http://192.168.49.1:3000'; // ✅ IP ของ server.js
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Lecthistory(),
-    );
-  }
-}
-
-class Lecthistory extends StatelessWidget {
+class Lecthistory extends StatefulWidget {
   const Lecthistory({super.key});
 
-  final List<Map<String, String>> borrowHistory = const [
-    {
-      'book': 'Horror',
-      'borrowDate': '5/10/2025',
-      'returnDate': '12/10/2025',
-      'borrower': 'Kwan',
-      'status': 'Approved',
-    },
-    {
-      'book': 'เรื่องเศร้าเล่มสีชมพู',
-      'borrowDate': '10/10/2025',
-      'returnDate': '17/10/2025',
-      'borrower': 'Nat',
-      'status': 'Rejected',
-    },
-  ];
+  @override
+  State<Lecthistory> createState() => _LecthistoryState();
+}
+
+class _LecthistoryState extends State<Lecthistory> {
+  List<dynamic> borrowHistory = [];
+  bool isLoading = true;
+
+  // ✅ ดึงข้อมูลจาก API
+  Future<void> fetchHistory() async {
+    setState(() => isLoading = true); // แสดงโหลดก่อนรีเฟรช
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/staff/history'));
+      if (res.statusCode == 200) {
+        setState(() {
+          borrowHistory = json.decode(res.body);
+          isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load history');
+      }
+    } catch (e) {
+      print('❌ Error fetching history: $e');
+      setState(() => isLoading = false);
+    }
+  }
+
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'borrowed':
+      case 'returned':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchHistory(); // ✅ ดึงข้อมูลเมื่อเปิดหน้า
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(221, 179, 179, 179),
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: const Color(0xFF8B1A1A),
         title: const Text(
           'History',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
-      ),
-      body: Container(
-        color: Colors.white,
-        margin: const EdgeInsets.all(10),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade400),
-              columnSpacing: 30,
-              headingRowColor: WidgetStateColor.resolveWith(
-                (states) => const Color(0xFF8B1A1A),
-              ),
-              headingTextStyle: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-              columns: const [
-                DataColumn(label: Text('Book')),
-                DataColumn(label: Text('Borrower')), // ✅ เพิ่มคอลัมน์ชื่อผู้ยืม
-                DataColumn(label: Text('Borrowing date')),
-                DataColumn(label: Text('Date of return')),
-                DataColumn(label: Text('Approval Status')),
-              ],
-              rows: borrowHistory.map((item) {
-                Color statusColor;
-                if (item['status'] == 'Approved') {
-                  statusColor = Colors.green;
-                } else if (item['status'] == 'Rejected') {
-                  statusColor = Colors.red;
-                } else {
-                  statusColor = Colors.grey;
-                }
 
-                return DataRow(
-                  cells: [
-                    DataCell(Text(item['book']!)),
-                    DataCell(Text(item['borrower']!)), // ✅ แสดงชื่อผู้ยืม
-                    DataCell(Text(item['borrowDate']!)),
-                    DataCell(Text(item['returnDate']!)),
-                    DataCell(
-                      Text(
-                        item['status']!,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
+        // ✅ ปุ่มรีเฟรช
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
+            onPressed: () async {
+              await fetchHistory();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('History refreshed successfully!'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
           ),
-        ),
+        ],
       ),
+
+      // ✅ ใช้ RefreshIndicator เพื่อรีเฟรชหน้า
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.red))
+          : borrowHistory.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No history available',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: fetchHistory, // ดึงข้อมูลใหม่เมื่อดึงลง
+                  color: const Color(0xFF8B1A1A),
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(10),
+                    itemCount: borrowHistory.length,
+                    itemBuilder: (context, index) {
+                      final item = borrowHistory[index];
+                      return Card(
+                        color: Colors.white,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['book'] ?? '-',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text("Borrower: ${item['borrower'] ?? '-'}"),
+                                    Text("Borrow date: ${item['borrowDate'] ?? '-'}"),
+                                    Text("Return date: ${item['returnDate'] ?? '-'}"),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      item['status'] ?? '-',
+                                      style: TextStyle(
+                                        color: getStatusColor(item['status'] ?? ''),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  item['image'] ?? '',
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.image_not_supported, size: 60),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
     );
   }
 }

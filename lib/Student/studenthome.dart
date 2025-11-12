@@ -100,6 +100,7 @@ class _BookStoreHomeState extends State<BookStoreHome> {
               key: UniqueKey(),
               bookId: selectedBookId,
               userId: widget.userId,
+              initialTab: selectedBookId != null ? 'request' : 'status',
             );
           } else if (currentRole == UserRole.student && i == 2) {
             // หน้า History
@@ -120,7 +121,7 @@ class _BookStoreHomeState extends State<BookStoreHome> {
         onTap: (i) {
           setState(() {
             _currentIndex = i;
-           
+            selectedBookId = null;
           });
         },
         backgroundColor: kBar,
@@ -363,15 +364,26 @@ class _HomeGridState extends State<_HomeGrid> {
   }
 }
 
-/// 🔹 ฟังก์ชันช่วยโหลดภาพ (รองรับทั้ง URL, assets, และชื่อไฟล์ตรง)
+/// 🔹 ฟังก์ชันช่วยโหลดภาพ (รองรับทั้ง URL, assets, และชื่อไฟล์จาก server)
 ImageProvider _bookImage(String? raw) {
   final s = (raw ?? '').trim();
   if (s.isEmpty) {
-    return const AssetImage('assets/images/ready.jpg'); // placeholder
+    // ✅ ไม่มีรูปให้ใช้ placeholder
+    return const AssetImage('assets/images/ready.jpg');
   }
-  if (s.startsWith('http')) return NetworkImage(s);
-  if (s.startsWith('assets/')) return AssetImage(s);
-  return AssetImage('assets/images/$s'); // เช่น "1.jpg", "redhood.jpg"
+
+  // ✅ ถ้ามาเป็น URL เต็ม เช่น http://192.168.49.1:3000/uploads/xxx.jpg
+  if (s.startsWith('http')) {
+    return NetworkImage(s);
+  }
+
+  // ✅ ถ้าเป็นชื่อไฟล์ที่อยู่ใน server เช่น image-xxx.jpg
+  if (s.endsWith('.jpg') || s.endsWith('.png') || s.contains('/uploads/')) {
+    return NetworkImage('$baseUrl/uploads/$s');
+  }
+
+  // ✅ ถ้าเป็นชื่อไฟล์ใน assets ภายในโปรเจกต์
+  return AssetImage('assets/images/$s');
 }
 
 /// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
@@ -491,8 +503,10 @@ class _BookCardFromJson extends StatelessWidget {
                   TextButton(
                     onPressed: () async {
                       Navigator.pop(ctx);
+
                       final homeState = context
                           .findAncestorStateOfType<_BookStoreHomeState>();
+
                       if (homeState != null) {
                         homeState.setState(() {
                           homeState._currentIndex = 1;

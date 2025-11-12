@@ -312,7 +312,37 @@ app.get('/api/history/:studentId', (req, res) => {
   });
 });
 
+// ---------------- DELETE / CANCEL BORROW ----------------
+app.delete('/borrow/:id', (req, res) => {
+  const borrowId = req.params.id;
 
+  db.query('SELECT book_id, status FROM borrowings WHERE id = ?', [borrowId], (err, results) => {
+    if (err) {
+      console.error('Error selecting borrow:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'Borrow record not found' });
+    }
+
+    const borrowRow = results[0];
+
+    db.query('DELETE FROM borrowings WHERE id = ?', [borrowId], (err2, result) => {
+      if (err2) {
+        console.error('Error deleting borrow:', err2);
+        return res.status(500).json({ message: 'Delete failed' });
+      }
+
+      db.query('UPDATE books SET status = "available" WHERE id = ?', [borrowRow.book_id], (err3) => {
+        if (err3) console.error('Error updating book status:', err3);
+
+        console.log(`Borrow ID ${borrowId} deleted and book ${borrowRow.book_id} set to available`);
+        res.json({ message: 'Borrow cancelled and deleted successfully' });
+      });
+    });
+  });
+});
 
 // ===================== STAFF =====================
 // ---------------- ADD NEW BOOK ----------------

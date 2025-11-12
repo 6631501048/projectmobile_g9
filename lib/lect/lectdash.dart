@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'package:projectmobile_g9/Login-Regis/login.dart';
+
 const String baseUrl = 'http://192.168.49.1:3000';
 
 class Lectdash extends StatefulWidget {
   const Lectdash({super.key});
 
-   @override
+  @override
   State<Lectdash> createState() => _LectdashState();
 }
 
@@ -16,33 +18,33 @@ class _LectdashState extends State<Lectdash> {
   int available = 0;
   int disabled = 0;
   int pending = 0;
-  int total = 1; // กันหารศูนย์
+  int total = 1;
   bool isLoading = true;
 
   Future<void> fetchSummary() async {
-  try {
-    print('🌐 Fetching summary...');
-    final res = await http.get(Uri.parse('$baseUrl/api/dashboard/summary'));
-    print('📦 Response: ${res.statusCode}');
-    print('📦 Body: ${res.body}');
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      print('✅ Decoded: $data');
-      setState(() {
-        borrowed = data['borrowed'] ?? 0;
-        available = data['available'] ?? 0;
-        disabled = data['disabled'] ?? 0;
-        pending = data['pending'] ?? 0;
-        total = data['total'] ?? 1;
-        isLoading = false;
-      });
-    } else {
-      print('❌ Fetch failed: ${res.statusCode}');
+    try {
+      print('🌐 Fetching summary...');
+      final res = await http.get(Uri.parse('$baseUrl/api/dashboard/summary'));
+      print('📦 Response: ${res.statusCode}');
+      print('📦 Body: ${res.body}');
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        print('✅ Decoded: $data');
+        setState(() {
+          borrowed = data['borrowed'] ?? 0;
+          available = data['available'] ?? 0;
+          disabled = data['disabled'] ?? 0;
+          pending = data['pending'] ?? 0;
+          total = data['total'] ?? 1;
+          isLoading = false;
+        });
+      } else {
+        print('❌ Fetch failed: ${res.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ Exception: $e');
     }
-  } catch (e) {
-    print('⚠️ Exception: $e');
   }
-}
 
   @override
   void initState() {
@@ -60,68 +62,115 @@ class _LectdashState extends State<Lectdash> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard', style: TextStyle(color: Colors.white),),
+        title: const Text('Dashboard', style: TextStyle(color: Colors.white)),
         centerTitle: true,
         backgroundColor: const Color(0xFF8B1A1A),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: fetchSummary,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // ✅ Status Cards
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: StatusCard(color: Colors.red, title: 'Borrowed Assets', count: borrowed)),
-                  const SizedBox(width: 12),
-                  Expanded(child: StatusCard(color: Colors.green, title: 'Available Assets', count: available)),
-                  const SizedBox(width: 12),
-                  Expanded(child: StatusCard(color: Colors.orange, title: 'Disabled Assets', count: disabled)),
-                  const SizedBox(width: 12),
-                  Expanded(child: StatusCard(color: Colors.blue, title: 'Pending Borrow', count: pending)),
-                ],
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
-              const SizedBox(height: 24),
+              builder: (ctx) => Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Menu',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
-              // ✅ Progress Bars
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.blueAccent),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(2, 2)),
-                      ],
+                    // 📚 ปุ่มรีเฟรช
+                    ListTile(
+                      leading: const Icon(Icons.refresh, color: Colors.blue),
+                      title: const Text('Refresh Summary'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        fetchSummary();
+                      },
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Assets Overview',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
-                        buildBar('Borrowed', borrowed / total, Colors.red),
-                        buildBar('Available', available / total, Colors.green),
-                        buildBar('Disabled', disabled / total, Colors.orange),
-                        buildBar('Pending Borrow', pending / total, Colors.blue),
-                      ],
+
+                    const Divider(height: 1),
+
+                    // 🚪 ปุ่ม Logout
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Confirm Logout'),
+                            content: const Text('Are you sure you want to log out?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context, rootNavigator: true).pop();
+                                  Future.delayed(const Duration(milliseconds: 150), () {
+                                    Navigator.of(context, rootNavigator: true)
+                                        .pushAndRemoveUntil(
+                                      MaterialPageRoute(
+                                        builder: (_) => const LoginPage(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  });
+                                },
+                                child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // 🔹 แถวสถิติ
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                StatusCard(color: Colors.blue, title: 'Borrowed', count: borrowed),
+                StatusCard(color: Colors.green, title: 'Available', count: available),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                StatusCard(color: Colors.orange, title: 'Pending', count: pending),
+                StatusCard(color: Colors.red, title: 'Disabled', count: disabled),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // 🔹 Progress Bars
+            buildBar('Borrowed', borrowed / total, Colors.blue),
+            buildBar('Available', available / total, Colors.green),
+            buildBar('Pending', pending / total, Colors.orange),
+            buildBar('Disabled', disabled / total, Colors.red),
+          ],
         ),
       ),
     );
@@ -162,6 +211,7 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: 150,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
