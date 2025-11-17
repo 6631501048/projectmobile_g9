@@ -39,6 +39,7 @@ class BorrowRequest {
   final String fromDate;
   final String toDate;
   final String status;
+  final String rejectReason; 
 
   BorrowRequest({
     required this.id,
@@ -47,6 +48,7 @@ class BorrowRequest {
     required this.fromDate,
     required this.toDate,
     required this.status,
+    required this.rejectReason, 
   });
 
   factory BorrowRequest.fromJson(Map<String, dynamic> json) {
@@ -57,6 +59,7 @@ class BorrowRequest {
       fromDate: json['from'] ?? json['borrow_date'] ?? '-',
       toDate: json['to'] ?? json['return_date'] ?? '-',
       status: json['status'] ?? 'pending',
+      rejectReason: json['reject_reason'] ?? '-',
     );
   }
 }

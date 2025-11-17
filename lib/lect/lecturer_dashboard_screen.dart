@@ -9,7 +9,8 @@ const Color kPrimaryColor = Color(0xFF8A0E0E);
 const Color kBackgroundColor = Color(0xFFF5F5F5);
 
 class LecturerDashboardScreen extends StatefulWidget {
-  const LecturerDashboardScreen({Key? key}) : super(key: key);
+  final int userId;
+  const LecturerDashboardScreen({Key? key, required this.userId}) : super(key: key);
 
   @override
   _LecturerDashboardScreenState createState() =>
@@ -102,7 +103,7 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  PendingApprovalScreen(book: book),
+                                  PendingApprovalScreen(book: book, userId: widget.userId),
                             ),
                           );
                           _fetchBookRequests(); // โหลดใหม่ตอนกลับ

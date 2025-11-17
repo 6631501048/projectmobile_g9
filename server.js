@@ -104,7 +104,6 @@ app.get('/books', (req, res) => {
       id, 
       title, 
       author, 
-      category, 
       description, 
       image, 
       STATUS AS status 
@@ -125,7 +124,7 @@ app.get('/books/:id', (req, res) => {
   const id = req.params.id;
   const sql = `
     SELECT 
-      id, title, author, category, description, image, STATUS AS status
+      id, title, author, description, image, STATUS AS status
     FROM books
     WHERE id = ?
   `;
@@ -240,8 +239,21 @@ app.put('/return/:id', (req, res) => {
       `;
       updateParams = [newStatus, borrowId];
     } else if (newStatus === 'rejected') {
-      updateSql = 'UPDATE borrowings SET status = ?, approval_status = ? WHERE id = ?';
-      updateParams = [newStatus, approvalStatus, borrowId];
+      updateSql = `
+        UPDATE borrowings 
+        SET status = ?, 
+            approval_status = ?, 
+            reject_reason = ?, 
+            approved_by = ?
+        WHERE id = ?
+      `;
+      updateParams = [
+        newStatus,
+        approvalStatus,
+        req.body.reject_reason || "-",
+        approved_by = req.body.approverId || null,
+        borrowId
+      ];
     }
 
     db.query(updateSql, updateParams, (err2) => {
@@ -264,7 +276,6 @@ app.put('/return/:id', (req, res) => {
 // === API: Borrow History (MySQL version) ===
 app.get('/api/history/:studentId', (req, res) => {
   const { studentId } = req.params;
-  console.log(`📚 Fetching history for student ID: ${studentId}`);
 
   const sql = `
     SELECT 
@@ -273,7 +284,8 @@ app.get('/api/history/:studentId', (req, res) => {
       br.return_date,
       COALESCE(a.username, '-') AS approver,
       COALESCE(r.username, '-') AS receiver,
-      br.STATUS AS status,
+      br.status,
+      br.reject_reason,
       b.image
     FROM borrowings br
     JOIN books b ON br.book_id = b.id
@@ -289,22 +301,17 @@ app.get('/api/history/:studentId', (req, res) => {
       return res.status(500).json({ message: 'Error fetching borrow history' });
     }
 
-    if (rows.length === 0) {
-      return res.json([]); // ไม่มีข้อมูล
-    }
-
-    const BASE_URL = 'http://192.168.49.1:3000'; // ✅ ใช้ IP ของเครื่อง Mochi
+    const BASE_URL = 'http://192.168.49.1:3000';
     const formatted = rows.map(item => ({
       book: item.book,
       borrow_date: item.borrow_date
-        ? new Date(item.borrow_date).toLocaleDateString('th-TH')
-        : '-',
+        ? new Date(item.borrow_date).toLocaleDateString('th-TH') : '-',
       return_date: item.return_date
-        ? new Date(item.return_date).toLocaleDateString('th-TH')
-        : '-',
+        ? new Date(item.return_date).toLocaleDateString('th-TH') : '-',
       approver: item.approver,
       receiver: item.receiver,
-      status: item.status || 'pending',
+      reject_reason: item.reject_reason || "-",
+      status: item.status,
       image: `${BASE_URL}/images/${item.image || 'default.png'}`
     }));
 
@@ -347,16 +354,16 @@ app.delete('/borrow/:id', (req, res) => {
 // ===================== STAFF =====================
 // ---------------- ADD NEW BOOK ----------------
 app.post('/books/add', (req, res) => {
-  const { title, author, category, description, image, status } = req.body;
+  const { title, author, description, image, status } = req.body;
   if (!title) return res.status(400).json({ message: 'Title is required' });
 
   const sql = `
-    INSERT INTO books (title, author, category, description, image, STATUS)
+    INSERT INTO books (title, author, description, image, STATUS)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
   db.query(
     sql,
-    [title, author, category, description, image || 'default.png', status || 'available'],
+    [title, author, description, image || 'default.png', status || 'available'],
     (err, result) => {
       if (err) {
         console.error('❌ Error adding book:', err);
@@ -370,13 +377,13 @@ app.post('/books/add', (req, res) => {
 // ---------------- UPDATE BOOK ----------------
 app.put('/books/:id', (req, res) => {
   const { id } = req.params;
-  const { title, author, category, description, status } = req.body;
+  const { title, author, description, status } = req.body;
   const sql = `
     UPDATE books
-    SET title = ?, author = ?, category = ?, description = ?, STATUS = ?
+    SET title = ?, author = ?, description = ?, STATUS = ?
     WHERE id = ?
   `;
-  db.query(sql, [title, author, category, description, status, id], (err) => {
+  db.query(sql, [title, author, description, status, id], (err) => {
     if (err) {
       console.error('❌ Error updating book:', err);
       return res.status(500).json({ message: 'Update failed' });
@@ -491,13 +498,15 @@ app.get("/api/dashboard/summary", (req, res) => {
 app.get('/api/staff/history', (req, res) => {
   const sql = `
     SELECT 
+      br.id AS borrow_id,
       b.title AS book,
       br.borrow_date,
       br.return_date,
       u.username AS borrower,
       COALESCE(a.username, '-') AS approver,
       COALESCE(r.username, '-') AS receiver,
-      br.STATUS AS status,
+      br.status AS status,
+      br.reject_reason,
       b.image
     FROM borrowings br
     JOIN books b ON br.book_id = b.id
@@ -515,17 +524,19 @@ app.get('/api/staff/history', (req, res) => {
 
     const BASE_URL = 'http://192.168.49.1:3000';
     const formatted = rows.map(item => ({
+      id: item.borrow_id,
       book: item.book,
+      borrower: item.borrower,
       borrowDate: item.borrow_date
         ? new Date(item.borrow_date).toLocaleDateString('th-TH')
         : '-',
       returnDate: item.return_date
         ? new Date(item.return_date).toLocaleDateString('th-TH')
         : '-',
-      borrower: item.borrower,
       approver: item.approver,
       receiver: item.receiver,
-      status: item.status || 'pending',
+      status: item.status,
+      reject_reason: item.reject_reason || "-",
       image: `${BASE_URL}/images/${item.image || 'default.png'}`
     }));
 
@@ -542,18 +553,19 @@ app.get('/api/staff/getreturn', (req, res) => {
       b.title AS book,
       br.borrow_date,
       br.return_date,
-      br.STATUS AS status,
+      br.status,
+      br.reject_reason,
       b.image
     FROM borrowings br
     JOIN users u ON br.user_id = u.id
     JOIN books b ON br.book_id = b.id
-    WHERE br.STATUS IN ('pending', 'borrowed')
+    WHERE br.status IN ('pending', 'borrowed')
     ORDER BY br.borrow_date DESC
   `;
 
   db.query(sql, (err, rows) => {
     if (err) {
-      console.error('❌ Error fetching getreturn list:', err);
+      console.error('❌ Error fetching return list:', err);
       return res.status(500).json({ message: 'Database error' });
     }
 
@@ -569,6 +581,7 @@ app.get('/api/staff/getreturn', (req, res) => {
         ? new Date(item.return_date).toLocaleDateString('th-TH')
         : '-',
       status: item.status,
+      reject_reason: item.reject_reason || "-",
       image: `${BASE_URL}/images/${item.image || 'default.png'}`
     }));
 
@@ -595,6 +608,13 @@ app.put('/api/staff/return/:id', (req, res) => {
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'No borrowed record found' });
+    } else if (newStatus === 'rejected') {
+      updateSql = `
+        UPDATE borrowings 
+        SET status = ?, approval_status = ?, reject_reason = ?
+        WHERE id = ?
+      `;
+      updateParams = [newStatus, approvalStatus, req.body.reject_reason || null, borrowId];
     }
 
     // ✅ คืนสถานะหนังสือให้ available

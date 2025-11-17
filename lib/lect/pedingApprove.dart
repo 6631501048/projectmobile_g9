@@ -10,7 +10,8 @@ const Color kBackgroundColor = Color(0xFFF5F5F5);
 
 class PendingApprovalScreen extends StatefulWidget {
   final Book book;
-  const PendingApprovalScreen({Key? key, required this.book}) : super(key: key);
+  final int userId;
+  const PendingApprovalScreen({Key? key, required this.book, required this.userId}) : super(key: key);
 
   @override
   _PendingApprovalScreenState createState() => _PendingApprovalScreenState();
@@ -27,8 +28,10 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
   @override
   void initState() {
     super.initState();
-    _rotationController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1));
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
     _rotationController.repeat(); // เริ่มหมุนไว้ก่อน
     _fetchRequests();
   }
@@ -78,16 +81,50 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
     await http.put(
       Uri.parse('$baseUrl/approve/$borrowId'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({'approverId': 2}),
+      body: json.encode({'approverId': widget.userId}),
     );
     _fetchRequests();
   }
 
   Future<void> _rejectRequest(int borrowId) async {
+    TextEditingController reasonController = TextEditingController();
+
+    // ⭐ popup ให้กรอกเหตุผล
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Reject Reason"),
+          content: TextField(
+            controller: reasonController,
+            decoration: InputDecoration(hintText: "Enter reject reason..."),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, reasonController.text),
+              child: Text("Confirm"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (reason == null || reason.isEmpty) return;
+
+    // ⭐ ส่ง reject_reason ไป API
     await http.put(
       Uri.parse('$baseUrl/return/$borrowId'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({'status': 'rejected'}),
+      body: json.encode({
+        'status': 'rejected',
+        'approval_status': 'rejected',
+        'reject_reason': reason,
+        'approverId': widget.userId,
+      }),
     );
     _fetchRequests();
   }
@@ -121,38 +158,38 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : _requests.isEmpty
-                ? const Center(child: Text("No pending requests"))
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _requests.length,
-                    itemBuilder: (context, index) {
-                      final req = _requests[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: ListTile(
-                          title: Text("Borrower: ${req.borrower}"),
-                          subtitle:
-                              Text("From ${req.fromDate} → ${req.toDate}"),
-                          trailing: Wrap(
-                            spacing: 10,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.check_circle,
-                                    color: Colors.green),
-                                onPressed: () => _approveRequest(req.id),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.cancel,
-                                    color: Colors.red),
-                                onPressed: () => _rejectRequest(req.id),
-                              ),
-                            ],
+            ? const Center(child: Text("No pending requests"))
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                itemCount: _requests.length,
+                itemBuilder: (context, index) {
+                  final req = _requests[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      title: Text("Borrower: ${req.borrower}"),
+                      subtitle: Text("From ${req.fromDate} → ${req.toDate}"),
+                      trailing: Wrap(
+                        spacing: 10,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                            ),
+                            onPressed: () => _approveRequest(req.id),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                          IconButton(
+                            icon: const Icon(Icons.cancel, color: Colors.red),
+                            onPressed: () => _rejectRequest(req.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }

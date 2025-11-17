@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 const String baseUrl = 'http://192.168.49.1:3000'; // ✅ IP ของ server.js
 
 class Lecthistory extends StatefulWidget {
-  const Lecthistory({super.key});
+  final int userId;
+  const Lecthistory({Key? key, required this.userId}) : super(key: key);
 
   @override
   State<Lecthistory> createState() => _LecthistoryState();
@@ -89,77 +90,90 @@ class _LecthistoryState extends State<Lecthistory> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator(color: Colors.red))
           : borrowHistory.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No history available',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: fetchHistory, // ดึงข้อมูลใหม่เมื่อดึงลง
-                  color: const Color(0xFF8B1A1A),
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(10),
-                    itemCount: borrowHistory.length,
-                    itemBuilder: (context, index) {
-                      final item = borrowHistory[index];
-                      return Card(
-                        color: Colors.white,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item['book'] ?? '-',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text("Borrower: ${item['borrower'] ?? '-'}"),
-                                    Text("Borrow date: ${item['borrowDate'] ?? '-'}"),
-                                    Text("Return date: ${item['returnDate'] ?? '-'}"),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      item['status'] ?? '-',
-                                      style: TextStyle(
-                                        color: getStatusColor(item['status'] ?? ''),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
+          ? const Center(
+              child: Text(
+                'No history available',
+                style: TextStyle(color: Colors.black54),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: fetchHistory, // ดึงข้อมูลใหม่เมื่อดึงลง
+              color: const Color(0xFF8B1A1A),
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(10),
+                itemCount: borrowHistory.length,
+                itemBuilder: (context, index) {
+                  final item = borrowHistory[index];
+                  return Card(
+                    color: Colors.white,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['book'] ?? '-',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  item['image'] ?? '',
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.image_not_supported, size: 60),
+                                const SizedBox(height: 6),
+                                Text("Borrower: ${item['borrower'] ?? '-'}"),
+                                Text(
+                                  "Borrow date: ${item['borrowDate'] ?? '-'}",
                                 ),
-                              ),
-                            ],
+                                Text(
+                                  "Return date: ${item['returnDate'] ?? '-'}",
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item['status'] ?? '-',
+                                  style: TextStyle(
+                                    color: getStatusColor(item['status'] ?? ''),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if ((item['status'] ?? '').toLowerCase() ==
+                                    'rejected')
+                                  Text(
+                                    "Reject reason: ${item['reject_reason'] ?? '-'}",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                          const SizedBox(width: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              item['image'] ?? '',
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(
+                                    Icons.image_not_supported,
+                                    size: 60,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }

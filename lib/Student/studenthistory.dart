@@ -12,6 +12,7 @@ class HistoryItem {
   final String receiver;
   final String status;
   final String image;
+  final String rejectReason;
 
   HistoryItem({
     required this.book,
@@ -21,6 +22,7 @@ class HistoryItem {
     required this.receiver,
     required this.status,
     required this.image,
+    required this.rejectReason,
   });
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class HistoryItem {
       receiver: json['receiver'] ?? '-',
       status: json['status'] ?? 'Unknown',
       image: json['image'] ?? '',
+      rejectReason: json['reject_reason']?.toString() ?? '-',
     );
   }
 }
@@ -181,6 +184,17 @@ class _StudentHistoryState extends State<StudentHistory> {
                                 color: statusColor,
                               ),
                             ),
+                            if (item.status.toLowerCase() == 'rejected')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  "Reason: ${item.rejectReason}",
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
