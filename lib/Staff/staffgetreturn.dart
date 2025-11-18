@@ -84,7 +84,8 @@ class _ReturnbookState extends State<Returnbook> {
 
     final filteredItems = items.where((it) {
       final status = (it['status'] ?? '').toLowerCase();
-      if (current == ReturnTab.pending) return status == 'pending';
+      if (current == ReturnTab.pending)
+        return status == 'pending' || status == 'return_pending';
       if (current == ReturnTab.borrowed) return status == 'borrowed';
       if (current == ReturnTab.returned) return status == 'returned';
       return false;
@@ -274,6 +275,8 @@ class _ReturnbookState extends State<Returnbook> {
                                 statusColor = Colors.blueGrey;
                               } else if (status == 'returned') {
                                 statusColor = Colors.green[700]!;
+                              } else if (status == 'return_pending') {
+                                statusColor = Colors.orange;
                               }
 
                               return _ReturnCard(
@@ -284,7 +287,7 @@ class _ReturnbookState extends State<Returnbook> {
                                 status: it['status'] ?? '-',
                                 statusColor: statusColor,
                                 image: it['image'] ?? '',
-                                onAction: status == 'borrowed'
+                                onAction: status == 'return_pending'
                                     ? () => confirmReturn(it['id'])
                                     : null,
                               );

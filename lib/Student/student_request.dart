@@ -90,7 +90,7 @@ class _RequestPageState extends State<RequestPage> {
 
   Future<void> fetchBook() async {
     if (widget.bookId == null) return;
-     final url = Uri.parse("$baseUrl/books/${widget.bookId}");
+    final url = Uri.parse("$baseUrl/books/${widget.bookId}");
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -561,12 +561,15 @@ class _RequestPageState extends State<RequestPage> {
                                 final response = await http.put(
                                   url,
                                   headers: {'Content-Type': 'application/json'},
-                                  body: jsonEncode({'status': 'return_pending'}),
+                                  body: jsonEncode({
+                                    'status': 'return_pending',
+                                  }),
                                 );
 
                                 if (response.statusCode == 200) {
                                   setState(() {
-                                    borrowList[index]['status'] = 'returned';
+                                    borrowList[index]['status'] =
+                                        'return_pending';
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -870,6 +873,10 @@ class _RequestPageState extends State<RequestPage> {
       case 'pending':
         bgColor = Colors.orange[100]!;
         textColor = Colors.orange[800]!;
+        break;
+      case 'return_pending':
+        bgColor = Colors.blue[100]!;
+        textColor = Colors.blue[800]!;
         break;
       default:
         bgColor = Colors.grey[200]!;

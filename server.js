@@ -523,7 +523,7 @@ app.get('/api/staff/getreturn', (req, res) => {
     FROM borrowings br
     JOIN users u ON br.user_id = u.id
     JOIN books b ON br.book_id = b.id
-    WHERE br.status IN ('pending', 'borrowed', 'return_pending')
+    WHERE br.status IN ('pending', 'borrowed', 'return_pending', 'returned')
     ORDER BY br.borrow_date DESC
   `;
 
