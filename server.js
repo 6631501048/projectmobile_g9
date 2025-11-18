@@ -1,9 +1,11 @@
 // server.js
+require('dotenv').config();
+const BASE_URL = process.env.BASE_URL;
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2');
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -301,7 +303,6 @@ app.get('/api/history/:studentId', (req, res) => {
       return res.status(500).json({ message: 'Error fetching borrow history' });
     }
 
-    const BASE_URL = 'http://192.168.49.1:3000';
     const formatted = rows.map(item => ({
       book: item.book,
       borrow_date: item.borrow_date
@@ -359,7 +360,7 @@ app.post('/books/add', (req, res) => {
 
   const sql = `
     INSERT INTO books (title, author, description, image, STATUS)
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?)
   `;
   db.query(
     sql,
@@ -522,7 +523,6 @@ app.get('/api/staff/history', (req, res) => {
       return res.status(500).json({ message: 'Error fetching staff history' });
     }
 
-    const BASE_URL = 'http://192.168.49.1:3000';
     const formatted = rows.map(item => ({
       id: item.borrow_id,
       book: item.book,
@@ -569,7 +569,6 @@ app.get('/api/staff/getreturn', (req, res) => {
       return res.status(500).json({ message: 'Database error' });
     }
 
-    const BASE_URL = 'http://192.168.49.1:3000';
     const formatted = rows.map(item => ({
       id: item.borrow_id,
       borrower: item.borrower,
@@ -662,7 +661,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
     return res.status(400).json({ message: 'No file uploaded' });
   }
 
-  const fileUrl = `http://192.168.49.1:3000/uploads/${req.file.filename}`;
+  const fileUrl = `${BASE_URL}/uploads/${req.file.filename}`;
   res.json({
     message: 'Upload success',
     filename: req.file.filename,

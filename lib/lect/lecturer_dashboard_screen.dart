@@ -3,8 +3,10 @@ import 'model.dart';
 import 'pedingApprove.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-const String baseUrl = 'http://192.168.49.1:3000';
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 const Color kPrimaryColor = Color(0xFF8A0E0E);
 const Color kBackgroundColor = Color(0xFFF5F5F5);
 

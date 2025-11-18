@@ -5,6 +5,10 @@ import 'Register.dart';
 import 'package:projectmobile_g9/Student/studenthome.dart';
 import 'package:projectmobile_g9/Staff/staffhome.dart';
 import 'package:projectmobile_g9/lect/lec.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,7 +37,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://192.168.49.1:3000/login');
+      final url = Uri.parse('$baseUrl/login');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

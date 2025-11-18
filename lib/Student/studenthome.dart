@@ -7,11 +7,13 @@ import 'studenthistory.dart';
 import 'student_request.dart';
 import 'studentprofile.dart';
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // ================== CONFIG ==================
 // Emulator Android ใช้ 10.0.2.2
 // ถ้าเป็นมือถือจริงใน LAN ให้เปลี่ยนเป็น IP คอม เช่น 'http://192.168.1.50:3000'
-const String baseUrl = 'http://192.168.49.1:3000';
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 // ============================================
 
 class StudentHome extends StatelessWidget {

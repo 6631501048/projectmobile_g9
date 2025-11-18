@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projectmobile_g9/Student/studenthome.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class RequestPage extends StatefulWidget {
   final int? bookId;
@@ -23,8 +24,8 @@ class RequestPage extends StatefulWidget {
   State<RequestPage> createState() => _RequestPageState();
 }
 
-const String ip = "192.168.49.1";
-const String port = "3000";
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class _RequestPageState extends State<RequestPage> {
   String title = "";
@@ -89,7 +90,7 @@ class _RequestPageState extends State<RequestPage> {
 
   Future<void> fetchBook() async {
     if (widget.bookId == null) return;
-    final url = Uri.parse("http://$ip:$port/books/${widget.bookId}");
+     final url = Uri.parse("$baseUrl/books/${widget.bookId}");
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -108,7 +109,7 @@ class _RequestPageState extends State<RequestPage> {
 
   Future<void> fetchBorrowData() async {
     final userId = widget.userId;
-    final url = Uri.parse("http://$ip:$port/borrow/$userId");
+    final url = Uri.parse("$baseUrl/borrow/$userId");
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -421,7 +422,7 @@ class _RequestPageState extends State<RequestPage> {
     if (s.isEmpty) return const AssetImage('assets/images/ready.jpg');
     if (s.startsWith('http')) return NetworkImage(s);
     if (s.endsWith('.jpg') || s.endsWith('.png')) {
-      return NetworkImage('http://$ip:$port/uploads/$s');
+      return NetworkImage('$baseUrl/uploads/$s');
     }
     return AssetImage('assets/images/$s');
   }
@@ -479,7 +480,7 @@ class _RequestPageState extends State<RequestPage> {
                               ? Image.network(
                                   imagePath.startsWith('http')
                                       ? imagePath
-                                      : 'http://$ip:$port/uploads/$imagePath',
+                                      : '$baseUrl/uploads/$imagePath',
                                   width: 110,
                                   height: 120,
                                   fit: BoxFit.cover,
@@ -553,7 +554,7 @@ class _RequestPageState extends State<RequestPage> {
 
                               final borrowId = borrowList[index]['id'];
                               final url = Uri.parse(
-                                "http://$ip:$port/return/$borrowId",
+                                "$baseUrl/return/$borrowId",
                               );
 
                               try {
@@ -649,7 +650,7 @@ class _RequestPageState extends State<RequestPage> {
                               if (confirm == true) {
                                 final borrowId = borrowList[index]['id'];
                                 final url = Uri.parse(
-                                  'http://$ip:$port/borrow/$borrowId',
+                                  '$baseUrl/borrow/$borrowId',
                                 );
 
                                 try {
@@ -904,7 +905,7 @@ class ApiClient {
     required String? borrowDate,
     required String? returnDate,
   }) async {
-    final url = Uri.parse('http://$ip:$port/borrow');
+    final url = Uri.parse('$baseUrl/borrow');
 
     final body = {
       'userId': userId,

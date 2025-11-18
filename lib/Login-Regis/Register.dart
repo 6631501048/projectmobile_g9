@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -36,7 +40,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://192.168.49.1:3000/register'); // สำหรับ Emulator (เปลี่ยนได้)
+      final url = Uri.parse('$baseUrl/register');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

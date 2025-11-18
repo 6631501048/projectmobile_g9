@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-const String baseUrl = 'http://192.168.49.1:3000'; // ✅ IP ของ Mochi
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class Lectprofile extends StatefulWidget {
   final int userId;

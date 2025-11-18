@@ -5,12 +5,13 @@ import 'staffhistory.dart';
 import 'staffgetreturn.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projectmobile_g9/Login-Regis/login.dart';
 
 void main() => runApp(const StaffBookStoreApp());
 
-const String baseUrl = 'http://192.168.49.1:3000';
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class StaffBookStoreApp extends StatelessWidget {
   const StaffBookStoreApp({super.key});
@@ -180,8 +181,13 @@ class _BookGridSectionState extends State<_BookGridSection> {
                         color: Colors.black12,
                       ),
                       child: Image.network(
-                        'https://picsum.photos/seed/bookstore-banner/1200/520',
+                        '$baseUrl/uploads/banner.jpg',
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 180,
+                          color: Colors.black12,
+                          child: Icon(Icons.broken_image, size: 50),
+                        ),
                       ),
                     ),
                   ),

@@ -5,11 +5,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+XFile? _pickedImage;
+String? _uploadedFileName;
 
-XFile? _pickedImage; // ไฟล์ที่ผู้ใช้เลือก
-String? _uploadedFileName; // ชื่อไฟล์ที่ server ตอบกลับ (เช่น 'xyz.jpg')
-
-const String baseUrl = 'http://192.168.49.1:3000';
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class StaffManage extends StatefulWidget {
   const StaffManage({super.key});

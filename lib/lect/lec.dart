@@ -5,6 +5,10 @@ import 'package:projectmobile_g9/lect/lectprofile.dart';
 import 'package:projectmobile_g9/lect/lecturer_dashboard_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class LectHomeApp extends StatelessWidget {
   final int userId;
@@ -161,9 +165,9 @@ class _BookGridSection extends StatefulWidget {
 class _BookGridSectionState extends State<_BookGridSection> {
   List<dynamic> books = [];
   bool isLoading = true;
-  String _selectedFilter = 'All'; // ✅ ตัวกรอง
+  String _selectedFilter = 'All';
 
-  static const String baseUrl = 'http://192.168.49.1:3000';
+  String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 
   @override
   void initState() {
@@ -230,8 +234,13 @@ class _BookGridSectionState extends State<_BookGridSection> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Image.network(
-                  'https://picsum.photos/seed/bookstore-banner/1200/520',
+                  '$baseUrl/uploads/banner.jpg',
                   fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 180,
+                    color: Colors.black12,
+                    child: Icon(Icons.broken_image, size: 50),
+                  ),
                 ),
               ),
             ),
@@ -388,7 +397,7 @@ class _BookItemCard extends StatelessWidget {
     final String status = (book['status'] ?? '').toLowerCase();
     final String description = (book['description'] ?? '').toString().trim();
     final String imagePath =
-        'http://192.168.49.1:3000/uploads/${book['image'] ?? 'default.png'}';
+        '$baseUrl/uploads/${book['image'] ?? 'default.png'}';
 
     // 🔹 สีและ label ตามสถานะ
     final (label, color) = switch (status) {

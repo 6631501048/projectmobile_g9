@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'model.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-const String baseUrl = 'http://192.168.49.1:3000';
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 const Color kPrimaryColor = Color(0xFF8A0E0E);
 const Color kAccentColor = Color(0xFF2E7D32);
 const Color kBackgroundColor = Color(0xFFF5F5F5);
