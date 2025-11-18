@@ -13,7 +13,11 @@ const Color kBackgroundColor = Color(0xFFF5F5F5);
 class PendingApprovalScreen extends StatefulWidget {
   final Book book;
   final int userId;
-  const PendingApprovalScreen({Key? key, required this.book, required this.userId}) : super(key: key);
+  const PendingApprovalScreen({
+    Key? key,
+    required this.book,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   _PendingApprovalScreenState createState() => _PendingApprovalScreenState();
@@ -51,8 +55,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
       if (res.statusCode == 200) {
         final List data = json.decode(res.body);
         final filtered = data.where((r) {
-          final matchBook =
-              (r['book']?.toString() ?? '').trim() == widget.book.title.trim();
+          final matchBook = r['book_id'] == widget.book.id;
           final matchStatus =
               (r['status']?.toString() ?? '').toLowerCase() == 'pending';
           return matchBook && matchStatus;
@@ -119,14 +122,9 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen>
 
     // ⭐ ส่ง reject_reason ไป API
     await http.put(
-      Uri.parse('$baseUrl/return/$borrowId'),
+      Uri.parse('$baseUrl/api/staff/reject/$borrowId'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'status': 'rejected',
-        'approval_status': 'rejected',
-        'reject_reason': reason,
-        'approverId': widget.userId,
-      }),
+      body: json.encode({'reject_reason': reason, 'approverId': widget.userId}),
     );
     _fetchRequests();
   }

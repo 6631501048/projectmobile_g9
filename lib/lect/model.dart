@@ -12,23 +12,27 @@ class Book {
   final String imageUrl;
   final String status;
 
+  int? borrowId; 
+
   Book({
     required this.id,
     required this.title,
     required this.author,
     required this.imageUrl,
     required this.status,
+    this.borrowId, 
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
-    final img = (json['image'] as String?)?.trim();
+    final img = json['image']?.toString().trim();
+
     return Book(
       id: json['id'],
       title: json['title'] ?? '-',
       author: json['author'] ?? '-',
       imageUrl: img == null || img.isEmpty
-          ? '$baseUrl/images/default.png'
-          : '$baseUrl/images/$img',
+          ? '$baseUrl/uploads/default.png'
+          : '$baseUrl/uploads/$img',
       status: json['status'] ?? 'available',
     );
   }
@@ -41,7 +45,7 @@ class BorrowRequest {
   final String fromDate;
   final String toDate;
   final String status;
-  final String rejectReason; 
+  final String rejectReason;
 
   BorrowRequest({
     required this.id,
@@ -50,7 +54,7 @@ class BorrowRequest {
     required this.fromDate,
     required this.toDate,
     required this.status,
-    required this.rejectReason, 
+    required this.rejectReason,
   });
 
   factory BorrowRequest.fromJson(Map<String, dynamic> json) {

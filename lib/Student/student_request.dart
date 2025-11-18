@@ -561,7 +561,7 @@ class _RequestPageState extends State<RequestPage> {
                                 final response = await http.put(
                                   url,
                                   headers: {'Content-Type': 'application/json'},
-                                  body: jsonEncode({'status': 'returned'}),
+                                  body: jsonEncode({'status': 'return_pending'}),
                                 );
 
                                 if (response.statusCode == 200) {

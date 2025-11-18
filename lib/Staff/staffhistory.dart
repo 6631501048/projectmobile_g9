@@ -249,7 +249,7 @@ class _StaffHistoryState extends State<StaffHistory> {
                                 width: 90,
                                 height: 120,
                                 child: Image.network(
-                                  item['image'] ?? '',
+                                  '$baseUrl/uploads/${item['image']}',
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
                                     return Container(

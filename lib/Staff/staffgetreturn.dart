@@ -442,7 +442,7 @@ class _ReturnCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: Image.network(
-              image,
+              '$baseUrl/uploads/$image',
               width: 80,
               height: 110,
               fit: BoxFit.cover,

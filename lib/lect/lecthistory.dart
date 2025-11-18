@@ -158,7 +158,7 @@ class _LecthistoryState extends State<Lecthistory> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Image.network(
-                              item['image'] ?? '',
+                              '${baseUrl}/uploads/${item['image'] ?? 'default.png'}',
                               width: 100,
                               height: 100,
                               fit: BoxFit.cover,

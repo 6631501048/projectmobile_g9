@@ -491,7 +491,7 @@ class _StaffManageState extends State<StaffManage> {
                                       borderRadius: BorderRadius.circular(10),
                                       child: Image.network(
                                         '$baseUrl/uploads/${book['image'] ?? 'default.png'}',
-                                        height: 150, // ขยายขึ้นเล็กน้อย
+                                        height: 150,
                                         width: double.infinity,
                                         fit: BoxFit.cover,
                                         errorBuilder:
@@ -1066,7 +1066,7 @@ class _StaffManageState extends State<StaffManage> {
                                                         )
                                                         as ImageProvider
                                                   : NetworkImage(
-                                                      '$baseUrl/images/${_uploadedFileName!}',
+                                                      '$baseUrl/uploads/${_uploadedFileName!}',
                                                     ),
                                               fit: BoxFit.cover,
                                             )

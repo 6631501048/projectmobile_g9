@@ -202,75 +202,39 @@ app.get('/borrow/:userId', (req, res) => {
 });
 
 
-// ---------------- RETURN / CANCEL ----------------
+// ---------------- USER REQUEST RETURN ----------------
 app.put('/return/:id', (req, res) => {
   const borrowId = req.params.id;
-  const newStatus = (req.body.status || '').toLowerCase().trim();
-  const approvalStatus = req.body.approval_status || null;
+
+  // เมื่อ user กด RETURN → เปลี่ยนเป็น return_pending เท่านั้น
+  const newStatus = 'return_pending';
 
   const selectSql = 'SELECT book_id, status FROM borrowings WHERE id = ?';
   db.query(selectSql, [borrowId], (err, results) => {
-    if (err) {
-      console.error('Error selecting borrow:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+    if (err) return res.status(500).json({ message: 'Database error' });
 
-    const borrowRow = results[0];
-    if (!borrowRow) {
+    if (results.length === 0)
       return res.status(404).json({ message: 'Borrow record not found' });
+
+    const row = results[0];
+
+    if (row.status !== 'borrowed') {
+      return res.status(400).json({
+        message: 'Cannot request return unless status is borrowed'
+      });
     }
 
-    const currentStatus = borrowRow.status.toLowerCase();
+    const updateSql = `
+      UPDATE borrowings 
+      SET status = 'return_pending', approval_status='pending'
+      WHERE id = ?
+    `;
 
-    if (newStatus === 'rejected' && currentStatus !== 'pending') {
-      return res.status(400).json({ message: 'Cannot cancel non-pending request' });
-    }
+    db.query(updateSql, [borrowId], (err2) => {
+      if (err2)
+        return res.status(500).json({ message: 'Failed to update status' });
 
-    if (newStatus === 'returned' && currentStatus !== 'borrowed') {
-      return res.status(400).json({ message: 'Cannot return non-borrowed book' });
-    }
-
-    let updateSql = '';
-    let updateParams = [];
-
-    if (newStatus === 'returned') {
-      updateSql = `
-        UPDATE borrowings 
-        SET status = ?, approval_status = 'approved', return_date = NOW()
-        WHERE id = ?
-      `;
-      updateParams = [newStatus, borrowId];
-    } else if (newStatus === 'rejected') {
-      updateSql = `
-        UPDATE borrowings 
-        SET status = ?, 
-            approval_status = ?, 
-            reject_reason = ?, 
-            approved_by = ?
-        WHERE id = ?
-      `;
-      updateParams = [
-        newStatus,
-        approvalStatus,
-        req.body.reject_reason || "-",
-        approved_by = req.body.approverId || null,
-        borrowId
-      ];
-    }
-
-    db.query(updateSql, updateParams, (err2) => {
-      if (err2) {
-        console.error('Error updating return status:', err2);
-        return res.status(500).json({ message: 'Update failed' });
-      }
-
-      // ✅ คืนหนังสือให้ available ทั้งตอน rejected และ returned
-      if (newStatus === 'rejected' || newStatus === 'returned') {
-        db.query('UPDATE books SET status = "available" WHERE id = ?', [borrowRow.book_id]);
-      }
-
-      console.log(`Borrow ID ${borrowId} updated to ${newStatus}`);
-      res.json({ message: `Status updated to ${newStatus}` });
+      res.json({ message: 'Return request submitted (return_pending)' });
     });
   });
 });
@@ -313,7 +277,7 @@ app.get('/api/history/:studentId', (req, res) => {
       receiver: item.receiver,
       reject_reason: item.reject_reason || "-",
       status: item.status,
-      image: `${BASE_URL}/images/${item.image || 'default.png'}`
+      image: item.image || 'default.png'
     }));
 
     res.json(formatted);
@@ -537,96 +501,118 @@ app.get('/api/staff/history', (req, res) => {
       receiver: item.receiver,
       status: item.status,
       reject_reason: item.reject_reason || "-",
-      image: `${BASE_URL}/images/${item.image || 'default.png'}`
+      image: item.image || 'default.png'
     }));
 
     res.json(formatted);
   });
 });
 
-// ✅ API: Get return list (pending/borrowed)
+// ---------------- STAFF GET RETURN LIST ----------------
 app.get('/api/staff/getreturn', (req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
+      br.book_id,
       u.username AS borrower,
       b.title AS book,
       br.borrow_date,
       br.return_date,
       br.status,
-      br.reject_reason,
       b.image
     FROM borrowings br
     JOIN users u ON br.user_id = u.id
     JOIN books b ON br.book_id = b.id
-    WHERE br.status IN ('pending', 'borrowed')
+    WHERE br.status IN ('pending', 'borrowed', 'return_pending')
     ORDER BY br.borrow_date DESC
   `;
 
   db.query(sql, (err, rows) => {
-    if (err) {
-      console.error('❌ Error fetching return list:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+    if (err) return res.status(500).json({ message: 'Database error' });
 
     const formatted = rows.map(item => ({
       id: item.borrow_id,
+      book_id: item.book_id,
       borrower: item.borrower,
       book: item.book,
-      from: item.borrow_date
-        ? new Date(item.borrow_date).toLocaleDateString('th-TH')
-        : '-',
-      to: item.return_date
-        ? new Date(item.return_date).toLocaleDateString('th-TH')
-        : '-',
+      from: item.borrow_date ? new Date(item.borrow_date).toLocaleDateString('th-TH') : '-',
+      to: item.return_date ? new Date(item.return_date).toLocaleDateString('th-TH') : '-',
       status: item.status,
-      reject_reason: item.reject_reason || "-",
-      image: `${BASE_URL}/images/${item.image || 'default.png'}`
+      image: item.image || 'default.png'
     }));
 
     res.json(formatted);
   });
 });
 
-// ✅ API: Confirm return (staff click “Get Return”)
+
+// ---------------- STAFF CONFIRM RETURN ----------------
 app.put('/api/staff/return/:id', (req, res) => {
   const { id } = req.params;
-  const staffId = req.body.received_by || null; // optional
+  const staffId = req.body.received_by || null;
 
   const sql = `
     UPDATE borrowings
-    SET STATUS = 'returned', approval_status = 'approved', received_by = ?
-    WHERE id = ? AND STATUS = 'borrowed'
+    SET status = 'returned',
+        approval_status = 'approved',
+        received_by = ?,
+        return_date = NOW()
+    WHERE id = ? AND status IN ('borrowed', 'return_pending')
   `;
 
   db.query(sql, [staffId, id], (err, result) => {
-    if (err) {
-      console.error('❌ Error updating return:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+    if (err) return res.status(500).json({ message: 'Database error' });
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'No borrowed record found' });
-    } else if (newStatus === 'rejected') {
-      updateSql = `
-        UPDATE borrowings 
-        SET status = ?, approval_status = ?, reject_reason = ?
-        WHERE id = ?
-      `;
-      updateParams = [newStatus, approvalStatus, req.body.reject_reason || null, borrowId];
+      return res.status(400).json({
+        message: 'Cannot confirm return unless status is borrowed or return_pending'
+      });
     }
 
-    // ✅ คืนสถานะหนังสือให้ available
+    // คืนสถานะหนังสือให้ available
     db.query(
-      'UPDATE books b JOIN borrowings br ON b.id = br.book_id SET b.STATUS = "available" WHERE br.id = ?',
+      'UPDATE books b JOIN borrowings br ON b.id = br.book_id SET b.status = "available" WHERE br.id = ?',
       [id]
     );
 
-    console.log(`✅ Borrow ID ${id} marked as returned`);
-    res.json({ message: 'Book return confirmed successfully' });
+    res.json({ message: 'Book return confirmed by staff' });
   });
 });
 
+// ================= STAFF REJECT BORROW REQUEST =================
+app.put('/api/staff/reject/:id', (req, res) => {
+  const borrowId = req.params.id;
+  const { reject_reason, approverId } = req.body;
+
+  if (!reject_reason) {
+    return res.status(400).json({ message: "Reject reason is required" });
+  }
+
+  const sql = `
+    UPDATE borrowings
+    SET status = 'rejected',
+        approval_status = 'rejected',
+        reject_reason = ?,
+        approved_by = ?
+    WHERE id = ? AND status = 'pending'
+  `;
+
+  db.query(sql, [reject_reason, approverId, borrowId], (err, result) => {
+    if (err) return res.status(500).json({ message: "Database error" });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "No pending request found" });
+    }
+
+    // คืนสถานะหนังสือให้ available
+    db.query(
+      'UPDATE books b JOIN borrowings br ON b.id = br.book_id SET b.status = "available" WHERE br.id = ?',
+      [borrowId]
+    );
+
+    res.json({ message: "Borrow request rejected successfully" });
+  });
+});
 
 
 // ============ UPLOAD IMAGE API ============ //

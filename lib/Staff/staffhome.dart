@@ -12,6 +12,20 @@ void main() => runApp(const StaffBookStoreApp());
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
+String fixImage(String? img) {
+  if (img == null || img.isEmpty) {
+    return '$baseUrl/uploads/default.png';
+  }
+
+  if (img.startsWith('http')) return img;
+
+  // ถ้า img มีคำว่า uploads อยู่แล้ว ให้ใช้ตรงๆ
+  if (img.contains('uploads')) {
+    return '$baseUrl/$img';
+  }
+
+  return '$baseUrl/uploads/$img';
+}
 
 class StaffBookStoreApp extends StatelessWidget {
   const StaffBookStoreApp({super.key});
@@ -215,7 +229,6 @@ class BookItem {
   final int id;
   final String title;
   final String author;
-  final String category;
   final String description;
   final String image;
   final String status;
@@ -224,7 +237,6 @@ class BookItem {
     required this.id,
     required this.title,
     required this.author,
-    required this.category,
     required this.description,
     required this.image,
     required this.status,
@@ -235,7 +247,6 @@ class BookItem {
       id: json['id'],
       title: json['title'] ?? '',
       author: json['author'] ?? '',
-      category: json['category'] ?? '',
       description: json['description'] ?? '',
       image: json['image'] ?? '',
       status: json['status'] ?? 'unknown',
@@ -255,7 +266,7 @@ class _BookItemCard extends StatelessWidget {
         return Colors.orange;
       case 'pending':
         return Colors.blueGrey;
-      case 'disable':
+      case 'disabled':
         return Colors.grey;
       default:
         return Colors.black45;
@@ -281,8 +292,6 @@ class _BookItemCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Author: ${book.author}'),
-                  const SizedBox(height: 6),
-                  Text('Category: ${book.category}'),
                   const SizedBox(height: 6),
                   Text('Status: ${book.status}'),
                   const SizedBox(height: 6),
@@ -311,10 +320,7 @@ class _BookItemCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   image: DecorationImage(
-                    image: NetworkImage('$baseUrl/uploads/${book.image}'),
-                    onError: (error, stackTrace) {
-                      debugPrint('⚠️ Image load failed: $error');
-                    },
+                    image: NetworkImage(fixImage(book.image)),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -483,7 +489,7 @@ class _BookSearchBar extends StatelessWidget {
                                             'Available',
                                             'Borrowed',
                                             'Pending',
-                                            'Disable',
+                                            'Disabled',
                                           ])
                                             ChoiceChip(
                                               label: Text(status),
