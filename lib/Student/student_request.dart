@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:projectmobile_g9/Student/studenthome.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+String get baseUrl => dotenv.env['BASE_URL'] ?? '';
+String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 class RequestPage extends StatefulWidget {
   final int? bookId;
   final String? title;
@@ -24,8 +27,6 @@ class RequestPage extends StatefulWidget {
   State<RequestPage> createState() => _RequestPageState();
 }
 
-String get baseUrl => dotenv.env['BASE_URL'] ?? '';
-String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
 
 class _RequestPageState extends State<RequestPage> {
   String title = "";
@@ -59,40 +60,23 @@ class _RequestPageState extends State<RequestPage> {
     fetchBorrowData();
   }
 
-  Future<void> confirmBorrow() async {
-    final userId = widget.userId;
-    final url = Uri.parse('$baseUrl/borrow');
-    final body = jsonEncode({'userId': userId, 'bookId': widget.bookId});
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('✅ Borrow request sent')));
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('❌ Borrow failed')));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
   }
 
   Future<void> fetchBook() async {
     if (widget.bookId == null) return;
+
+    final token = await getToken();
     final url = Uri.parse("$baseUrl/books/${widget.bookId}");
+
     try {
-      final response = await http.get(url);
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -108,10 +92,17 @@ class _RequestPageState extends State<RequestPage> {
   }
 
   Future<void> fetchBorrowData() async {
+    final token = await getToken();
     final userId = widget.userId;
     final url = Uri.parse("$baseUrl/borrow/$userId");
     try {
-      final response = await http.get(url);
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -130,7 +121,13 @@ class _RequestPageState extends State<RequestPage> {
     setState(() {
       isLoading = true;
     });
-    await fetchBorrowData();
+    try {
+      await fetchBorrowData();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to refresh: $e')));
+    }
   }
 
   @override
@@ -327,7 +324,24 @@ class _RequestPageState extends State<RequestPage> {
                           fontSize: 16,
                         ),
                       ),
-                      date(date: toDate),
+                      GestureDetector(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate:
+                                toDate ??
+                                DateTime.now().add(const Duration(days: 1)),
+                            firstDate: fromDate!,
+                            lastDate: fromDate!.add(const Duration(days: 7)),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              toDate = picked;
+                            });
+                          }
+                        },
+                        child: date(date: toDate),
+                      ),
                     ],
                   ),
                 ),
@@ -558,18 +572,19 @@ class _RequestPageState extends State<RequestPage> {
                               );
 
                               try {
+                                final token = await getToken();
                                 final response = await http.put(
                                   url,
-                                  headers: {'Content-Type': 'application/json'},
-                                  body: jsonEncode({
-                                    'status': 'return_pending',
-                                  }),
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': 'Bearer $token',
+                                  },
+                                  body: jsonEncode({'status': 'returned'}),
                                 );
 
                                 if (response.statusCode == 200) {
                                   setState(() {
-                                    borrowList[index]['status'] =
-                                        'return_pending';
+                                    borrowList[index]['status'] = 'returned';
                                   });
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -657,10 +672,12 @@ class _RequestPageState extends State<RequestPage> {
                                 );
 
                                 try {
+                                  final token = await getToken();
                                   final response = await http.delete(
                                     url,
                                     headers: {
                                       'Content-Type': 'application/json',
+                                      'Authorization': 'Bearer $token',
                                     },
                                   );
 
@@ -874,10 +891,6 @@ class _RequestPageState extends State<RequestPage> {
         bgColor = Colors.orange[100]!;
         textColor = Colors.orange[800]!;
         break;
-      case 'return_pending':
-        bgColor = Colors.blue[100]!;
-        textColor = Colors.blue[800]!;
-        break;
       default:
         bgColor = Colors.grey[200]!;
         textColor = Colors.grey[800]!;
@@ -906,14 +919,24 @@ class _RequestPageState extends State<RequestPage> {
 }
 
 class ApiClient {
+  static const String _baseUrl = 'baseUrl';
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
   static Future<void> borrow({
     required int userId,
     required int bookId,
     required String? borrowDate,
     required String? returnDate,
   }) async {
-    final url = Uri.parse('$baseUrl/borrow');
+    final token = await _getToken();
+    if (token == null) {
+      throw Exception('No token found. User might not be logged in.');
+    }
 
+    final url = Uri.parse('$_baseUrl/borrow');
     final body = {
       'userId': userId,
       'bookId': bookId,
@@ -923,12 +946,77 @@ class ApiClient {
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
       body: jsonEncode(body),
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to borrow book: ${response.statusCode}');
+      final errorMsg = response.body.isNotEmpty
+          ? response.body
+          : 'Unknown error';
+      throw Exception(
+        'Failed to borrow book: ${response.statusCode}, $errorMsg',
+      );
+    }
+  }
+
+  static Future<List<dynamic>> fetchBorrow(int userId) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('No token found');
+
+    final url = Uri.parse('$_baseUrl/borrow/$userId');
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch borrow data: ${response.statusCode}');
+    }
+
+    return json.decode(response.body);
+  }
+
+  static Future<void> returnBook(int borrowId) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('No token found');
+
+    final url = Uri.parse('$_baseUrl/return/$borrowId');
+    final response = await http.put(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'status': 'returned'}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to return book: ${response.statusCode}');
+    }
+  }
+
+  static Future<void> cancelBorrow(int borrowId) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('No token found');
+
+    final url = Uri.parse('$_baseUrl/borrow/$borrowId');
+    final response = await http.delete(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to cancel borrow: ${response.statusCode}');
     }
   }
 }

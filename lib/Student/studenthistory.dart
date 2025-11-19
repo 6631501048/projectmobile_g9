@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
@@ -42,11 +43,8 @@ class HistoryItem {
 }
 
 class StudentHistory extends StatefulWidget {
-  final int userId; // ✅ เพิ่มตัวนี้
-  const StudentHistory({
-    super.key,
-    required this.userId,
-  }); // ✅ รับค่ามาจากหน้า Home
+  final int userId;
+  const StudentHistory({super.key, required this.userId});
 
   @override
   State<StudentHistory> createState() => _StudentHistoryState();
@@ -58,21 +56,39 @@ class _StudentHistoryState extends State<StudentHistory> {
   @override
   void initState() {
     super.initState();
-    _historyFuture = _fetchHistory(
-      widget.userId.toString(),
-    ); // ✅ ใช้ userId จริง
+    _historyFuture = _fetchHistory(widget.userId.toString());
+  }
+
+  Future<String?> _getJwtToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString("token");
   }
 
   Future<List<HistoryItem>> _fetchHistory(String studentId) async {
-    final String apiUrl = "http://192.168.49.1:3000/api/history/$studentId";
+    final String apiUrl = "$baseUrl/api/history/$studentId";
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = await _getJwtToken();
+
+    if (token == null) {
+      throw Exception('No JWT token found. Please login again.');
+    }
 
     try {
-      final response = await http.get(Uri.parse(apiUrl));
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
       if (response.statusCode == 200) {
         List<dynamic> jsonData = jsonDecode(response.body);
         return jsonData
             .map((jsonItem) => HistoryItem.fromJson(jsonItem))
             .toList();
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized. Token may be expired.');
       } else {
         throw Exception(
           'Failed to load history (Status code: ${response.statusCode})',
@@ -103,9 +119,7 @@ class _StudentHistoryState extends State<StudentHistory> {
       color: const Color(0xFF8B1A1A),
       onRefresh: () async {
         setState(() {
-          _historyFuture = _fetchHistory(
-            widget.userId.toString(),
-          ); // ✅ ใช้ userId จริง
+          _historyFuture = _fetchHistory(widget.userId.toString());
         });
       },
       child: FutureBuilder<List<HistoryItem>>(
@@ -129,8 +143,7 @@ class _StudentHistoryState extends State<StudentHistory> {
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return ListView(
-              physics:
-                  const AlwaysScrollableScrollPhysics(), // ✅ ให้ดึงได้แม้ไม่มีข้อมูล
+              physics: const AlwaysScrollableScrollPhysics(),
               children: const [
                 SizedBox(height: 200),
                 Center(
@@ -206,7 +219,7 @@ class _StudentHistoryState extends State<StudentHistory> {
                         child: Image.network(
                           item.image.startsWith('http')
                               ? item.image
-                              : '$baseUrl/uploads/${item.image}', // ✅ ถ้าไม่ใช่ http ให้ต่อ URL เอง
+                              : '$baseUrl/uploads/${item.image}',
                           width: 80,
                           height: 80,
                           fit: BoxFit.cover,

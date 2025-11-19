@@ -6,6 +6,9 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2');
+const jwt = require('jsonwebtoken');
+const JWT_KEY = process.env.JWT_KEY || "mySecretKey123";
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -27,6 +30,30 @@ db.connect((err) => {
   }
 });
 
+function verifyUser(req, res, next) {
+  try {
+    let token = req.headers['authorization'] || req.headers['x-access-token'];
+    if (!token) return res.status(400).send('No token');
+
+    if (typeof token === 'string' && token.startsWith('Bearer ')) {
+      token = token.split(' ')[1];
+    }
+
+    jwt.verify(token, JWT_KEY, (err, decoded) => {
+      if (err) return res.status(401).send('Incorrect token');
+
+      const allowedRoles = ['student', 'admin', 'lecturer'];
+      if (!decoded || !allowedRoles.includes(decoded.role)) {
+        return res.status(403).send('Forbidden');
+      }
+
+      req.decoded = decoded;
+      next();
+    });
+  } catch (e) {
+    return res.status(500).send('Server error');
+  }
+}
 
 // 🔹 API: Register
 app.post("/register", (req, res) => {
@@ -73,17 +100,19 @@ app.post("/login", (req, res) => {
     }
 
     const user = results[0];
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_KEY, { expiresIn: '12h' });
     res.json({
       id: user.id,
       username: user.username,
       email: user.email,
       role: user.role,
+      token,
     });
   });
 });
 
 // 🔹 API: Get user by ID
-app.get("/user/:id", (req, res) => {
+app.get("/user/:id", verifyUser, (req, res) => {
   const userId = req.params.id;
   const sql = "SELECT id, username, email, role FROM users WHERE id = ?";
   db.query(sql, [userId], (err, results) => {
@@ -100,7 +129,7 @@ app.get("/user/:id", (req, res) => {
 
 
 // ---------------- BOOKS -------------------
-app.get('/books', (req, res) => {
+app.get('/books', verifyUser, (req, res) => {
   const sql = `
     SELECT 
       id, 
@@ -122,7 +151,7 @@ app.get('/books', (req, res) => {
 });
 
 // ---------------- BOOK DETAIL ----------------
-app.get('/books/:id', (req, res) => {
+app.get('/books/:id', verifyUser, (req, res) => {
   const id = req.params.id;
   const sql = `
     SELECT 
@@ -145,7 +174,7 @@ app.get('/books/:id', (req, res) => {
   });
 });
 
-app.post('/borrow', (req, res) => {
+app.post('/borrow', verifyUser, (req, res) => {
   const { userId, bookId, borrowDate, returnDate } = req.body;
 
   if (!userId || !bookId || !borrowDate || !returnDate) {
@@ -176,7 +205,7 @@ app.post('/borrow', (req, res) => {
 });
 
 // ---------------- BORROW STATUS ----------------
-app.get('/borrow/:userId', (req, res) => {
+app.get('/borrow/:userId', verifyUser, (req, res) => {
   const { userId } = req.params;
   const sql = `
     SELECT 
@@ -203,7 +232,7 @@ app.get('/borrow/:userId', (req, res) => {
 
 
 // ---------------- USER REQUEST RETURN ----------------
-app.put('/return/:id', (req, res) => {
+app.put('/return/:id', verifyUser, (req, res) => {
   const borrowId = req.params.id;
 
   // เมื่อ user กด RETURN → เปลี่ยนเป็น return_pending เท่านั้น
@@ -240,7 +269,7 @@ app.put('/return/:id', (req, res) => {
 });
 
 // === API: Borrow History (MySQL version) ===
-app.get('/api/history/:studentId', (req, res) => {
+app.get('/api/history/:studentId', verifyUser, (req, res) => {
   const { studentId } = req.params;
 
   const sql = `
@@ -285,7 +314,7 @@ app.get('/api/history/:studentId', (req, res) => {
 });
 
 // ---------------- DELETE / CANCEL BORROW ----------------
-app.delete('/borrow/:id', (req, res) => {
+app.delete('/borrow/:id', verifyUser, (req, res) => {
   const borrowId = req.params.id;
 
   db.query('SELECT book_id, status FROM borrowings WHERE id = ?', [borrowId], (err, results) => {
@@ -316,9 +345,18 @@ app.delete('/borrow/:id', (req, res) => {
   });
 });
 
+app.get('/unreturned/:userId', verifyUser, (req, res) => {
+  const { userId } = req.params;
+  const sql = "SELECT COUNT(*) AS count FROM borrowings WHERE user_id = ? AND status IN ('pending','borrowed')";
+  db.query(sql, [userId], (err, results) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    res.json({ hasUnreturned: results[0].count > 0 });
+  });
+});
+
 // ===================== STAFF =====================
 // ---------------- ADD NEW BOOK ----------------
-app.post('/books/add', (req, res) => {
+app.post('/books/add', verifyUser,(req, res) => {
   const { title, author, description, image, status } = req.body;
   if (!title) return res.status(400).json({ message: 'Title is required' });
 
@@ -340,7 +378,7 @@ app.post('/books/add', (req, res) => {
 });
 
 // ---------------- UPDATE BOOK ----------------
-app.put('/books/:id', (req, res) => {
+app.put('/books/:id', verifyUser,(req, res) => {
   const { id } = req.params;
   const { title, author, description, status } = req.body;
   const sql = `
@@ -358,7 +396,7 @@ app.put('/books/:id', (req, res) => {
 });
 
 // ---------------- DELETE BOOK ----------------
-app.delete('/books/:id', (req, res) => {
+app.delete('/books/:id', verifyUser,(req, res) => {
   const { id } = req.params;
   const sql = 'DELETE FROM books WHERE id = ?';
   db.query(sql, [id], (err, result) => {
@@ -373,7 +411,7 @@ app.delete('/books/:id', (req, res) => {
 });
 
 // ✅ Approve borrow request (for staff/admin)
-app.put('/approve/:id', (req, res) => {
+app.put('/approve/:id', verifyUser,(req, res) => {
   const borrowId = req.params.id;
   const approverId = req.body.approverId || null; // optional
 
@@ -418,7 +456,7 @@ app.put('/approve/:id', (req, res) => {
 });
 
 // ✅ patch status
-app.patch('/books/:id/status', (req, res) => {
+app.patch('/books/:id/status', verifyUser,(req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const sql = 'UPDATE books SET STATUS = ? WHERE id = ?';
@@ -429,7 +467,7 @@ app.patch('/books/:id/status', (req, res) => {
 });
 
 // ✅ API: Dashboard summary
-app.get("/api/dashboard/summary", (req, res) => {
+app.get("/api/dashboard/summary", verifyUser,(req, res) => {
   const sql = `
     SELECT 
       SUM(CASE WHEN STATUS = 'available' THEN 1 ELSE 0 END) AS available,
@@ -460,7 +498,7 @@ app.get("/api/dashboard/summary", (req, res) => {
 });
 
 // ✅ API: Staff Borrow History (ดูทุกการยืมคืน)
-app.get('/api/staff/history', (req, res) => {
+app.get('/api/staff/history', verifyUser,(req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -509,7 +547,7 @@ app.get('/api/staff/history', (req, res) => {
 });
 
 // ---------------- STAFF GET RETURN LIST ----------------
-app.get('/api/staff/getreturn', (req, res) => {
+app.get('/api/staff/getreturn', verifyUser,(req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -547,7 +585,7 @@ app.get('/api/staff/getreturn', (req, res) => {
 
 
 // ---------------- STAFF CONFIRM RETURN ----------------
-app.put('/api/staff/return/:id', (req, res) => {
+app.put('/api/staff/return/:id', verifyUser,(req, res) => {
   const { id } = req.params;
   const staffId = req.body.received_by || null;
 
@@ -580,7 +618,7 @@ app.put('/api/staff/return/:id', (req, res) => {
 });
 
 // ================= STAFF REJECT BORROW REQUEST =================
-app.put('/api/staff/reject/:id', (req, res) => {
+app.put('/api/staff/reject/:id', verifyUser,(req, res) => {
   const borrowId = req.params.id;
   const { reject_reason, approverId } = req.body;
 
@@ -642,7 +680,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ✅ endpoint อัปโหลด
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('image'), verifyUser,(req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }

@@ -1,20 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
-// ====== หน้าต่าง ๆ เดิมของมึง ถ้ามีให้ import ตามนี้ ======
 import 'studenthistory.dart';
 import 'student_request.dart';
 import 'studentprofile.dart';
-import 'package:projectmobile_g9/Login-Regis/Login.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// ================== CONFIG ==================
-// Emulator Android ใช้ 10.0.2.2
-// ถ้าเป็นมือถือจริงใน LAN ให้เปลี่ยนเป็น IP คอม เช่น 'http://192.168.1.50:3000'
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
-// ============================================
 
 class StudentHome extends StatelessWidget {
   final int userId;
@@ -26,7 +20,6 @@ class StudentHome extends StatelessWidget {
   }
 }
 
-/// เปลี่ยนบทบาทเพื่อสลับเมนูให้เหมือนภาพแต่ละแบบ
 enum UserRole { student, staff, admin }
 
 class BookStoreHome extends StatefulWidget {
@@ -38,22 +31,18 @@ class BookStoreHome extends StatefulWidget {
 }
 
 class _BookStoreHomeState extends State<BookStoreHome> {
-  // ตั้งค่าเริ่มเป็นนักศึกษา ตามภาพที่ให้มา
   UserRole currentRole = UserRole.student;
 
   int _currentIndex = 0;
   String _query = '';
   String _selectedFilter = 'All';
-
   int? selectedBookId;
 
-  // ✅ และเพิ่ม key เพื่อ refresh หน้า Home
   final GlobalKey<_HomeGridState> _homeKey = GlobalKey<_HomeGridState>();
 
-  // สีตามดีไซน์
-  static const Color kBar = Color(0xFF7A1B1B); // แถบล่าง
-  static const Color kActive = Color(0xFF5C1313); // วงรีตอนเลือก
-  static const Color kTextIcon = Colors.white; // สีไอคอน/ตัวหนังสือ
+  static const Color kBar = Color(0xFF7A1B1B);
+  static const Color kActive = Color(0xFF5C1313);
+  static const Color kTextIcon = Colors.white;
 
   @override
   Widget build(BuildContext context) {
@@ -67,10 +56,8 @@ class _BookStoreHomeState extends State<BookStoreHome> {
               title: _SearchBar(
                 onChanged: (v) => setState(() => _query = v),
                 onFilterChanged: (status) {
-                  setState(() => _selectedFilter = status); // ✅ อัปเดตใน state
-                  _homeKey.currentState?.setFilter(
-                    status,
-                  ); // ✅ ส่งต่อไปกรองใน grid
+                  setState(() => _selectedFilter = status);
+                  _homeKey.currentState?.setFilter(status);
                 },
                 selectedFilter: _selectedFilter,
               ),
@@ -97,7 +84,6 @@ class _BookStoreHomeState extends State<BookStoreHome> {
               userId: widget.userId,
             );
           } else if (currentRole == UserRole.student && i == 1) {
-            // หน้า My Request
             return RequestPage(
               key: UniqueKey(),
               bookId: selectedBookId,
@@ -105,18 +91,13 @@ class _BookStoreHomeState extends State<BookStoreHome> {
               initialTab: selectedBookId != null ? 'request' : 'status',
             );
           } else if (currentRole == UserRole.student && i == 2) {
-            // หน้า History
             return StudentHistory(userId: widget.userId);
           } else if (currentRole == UserRole.student && i == 3) {
-            // 🔹 หน้า Profile
             return StudentProfile(userId: widget.userId);
           }
-          // หน้าที่เหลือเป็น placeholder
           return _PlaceholderPage(title: pages[i].label);
         }),
       ),
-
-      // ---------- Bottom Bar แบบ custom (แดง + วงรี active) ----------
       bottomNavigationBar: _CurvedBottomBar(
         items: pages,
         currentIndex: _currentIndex,
@@ -144,7 +125,6 @@ class _BookStoreHomeState extends State<BookStoreHome> {
           _NavPage('Profile', Icons.sentiment_satisfied_alt_outlined),
         ];
       case UserRole.student:
-        // << แบบในรูป: Home / My Request / History / Profile >>
         return const [
           _NavPage('Home', Icons.home_outlined),
           _NavPage('My Request', Icons.note_add_outlined),
@@ -169,7 +149,6 @@ class _NavPage {
   const _NavPage(this.label, this.icon);
 }
 
-/// ----------------- Bottom Bar (custom pill highlight) -----------------
 class _CurvedBottomBar extends StatelessWidget {
   final List<_NavPage> items;
   final int currentIndex;
@@ -234,8 +213,23 @@ class _CurvedBottomBar extends StatelessWidget {
 
 /// ====================== API CLIENT ======================
 class ApiClient {
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString("token");
+  }
+
   static Future<List<dynamic>> fetchBooks() async {
-    final r = await http.get(Uri.parse('$baseUrl/books'));
+    final token = await _getToken();
+    if (token == null) throw Exception('No JWT token found');
+
+    final r = await http.get(
+      Uri.parse('$baseUrl/books'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
     if (r.statusCode != 200) {
       throw Exception('Fetch books failed: ${r.statusCode} ${r.body}');
     }
@@ -243,14 +237,41 @@ class ApiClient {
   }
 
   static Future<void> borrow({required int userId, required int bookId}) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('No JWT token found');
+
     final r = await http.post(
       Uri.parse('$baseUrl/borrow'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
       body: jsonEncode({'userId': userId, 'bookId': bookId}),
     );
+
     if (r.statusCode != 200) {
       throw Exception('Borrow failed: ${r.body}');
     }
+  }
+
+  static Future<bool> hasUnreturnedBook(int userId) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('No JWT token found');
+
+    final r = await http.get(
+      Uri.parse('$baseUrl/unreturned/$userId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (r.statusCode != 200) {
+      throw Exception('Check unreturned failed: ${r.body}');
+    }
+
+    final data = jsonDecode(r.body) as Map<String, dynamic>;
+    return data['hasUnreturned'] == true;
   }
 }
 
@@ -274,13 +295,7 @@ class _HomeGridState extends State<_HomeGrid> {
   }
 
   Future<void> _refresh() async {
-    setState(() {}); // รีเฟรชให้ FutureBuilder เรียกใหม่
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ รีเฟรชข้อมูลสำเร็จ'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    setState(() {});
   }
 
   @override
@@ -288,7 +303,6 @@ class _HomeGridState extends State<_HomeGrid> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: FutureBuilder<List<dynamic>>(
-        // ✅ ดึงข้อมูลใหม่ทุกครั้งจาก server
         future: ApiClient.fetchBooks(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -366,29 +380,23 @@ class _HomeGridState extends State<_HomeGrid> {
   }
 }
 
-/// 🔹 ฟังก์ชันช่วยโหลดภาพ (รองรับทั้ง URL, assets, และชื่อไฟล์จาก server)
 ImageProvider _bookImage(String? raw) {
   final s = (raw ?? '').trim();
   if (s.isEmpty) {
-    // ✅ ไม่มีรูปให้ใช้ placeholder
     return const AssetImage('assets/images/ready.jpg');
   }
 
-  // ✅ ถ้ามาเป็น URL เต็ม เช่น http://192.168.49.1:3000/uploads/xxx.jpg
   if (s.startsWith('http')) {
     return NetworkImage(s);
   }
 
-  // ✅ ถ้าเป็นชื่อไฟล์ที่อยู่ใน server เช่น image-xxx.jpg
   if (s.endsWith('.jpg') || s.endsWith('.png') || s.contains('/uploads/')) {
     return NetworkImage('$baseUrl/uploads/$s');
   }
 
-  // ✅ ถ้าเป็นชื่อไฟล์ใน assets ภายในโปรเจกต์
   return AssetImage('assets/images/$s');
 }
 
-/// 🔹 ฟังก์ชันช่วยอ่านคีย์ได้ทั้งตัวเล็ก/ตัวใหญ่
 String _readS(
   Map<String, dynamic> m,
   List<String> keys, {
@@ -396,7 +404,7 @@ String _readS(
 }) {
   for (final k in keys) {
     final v = m[k];
-    if (v != null) return v.toString(); // ✅ เพิ่ม ; ตรงนี้
+    if (v != null) return v.toString();
   }
   return fallback;
 }
@@ -463,7 +471,6 @@ class _BookCardFromJson extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () {
           final desc = description.trim();
-          // ใช้ status จากตัวแปรด้านบน ไม่ต้องประกาศซ้ำ
 
           showDialog(
             context: context,
@@ -504,11 +511,37 @@ class _BookCardFromJson extends StatelessWidget {
                 if (status.toLowerCase().trim() == 'available')
                   TextButton(
                     onPressed: () async {
+                      bool hasUnreturned = false;
+                      try {
+                        hasUnreturned = await ApiClient.hasUnreturnedBook(
+                          userId,
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error checking borrow status: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (hasUnreturned) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'You must return previous book before borrowing new one',
+                            ),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
                       Navigator.pop(ctx);
 
                       final homeState = context
                           .findAncestorStateOfType<_BookStoreHomeState>();
-
                       if (homeState != null) {
                         homeState.setState(() {
                           homeState._currentIndex = 1;
@@ -516,9 +549,9 @@ class _BookCardFromJson extends StatelessWidget {
                         });
                       }
                     },
+
                     child: const Text('Borrow'),
                   ),
-
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
                   child: const Text('OK'),
@@ -527,7 +560,6 @@ class _BookCardFromJson extends StatelessWidget {
             ),
           );
         },
-
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -537,7 +569,7 @@ class _BookCardFromJson extends StatelessWidget {
                   color: Colors.black12,
                   borderRadius: BorderRadius.circular(12),
                   image: DecorationImage(
-                    image: _bookImage(image), // ✅ ใช้ฟังก์ชันช่วยโหลดภาพ
+                    image: _bookImage(image),
                     fit: BoxFit.cover,
                   ),
                 ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:projectmobile_g9/Login-Regis/Login.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
@@ -26,11 +27,30 @@ class _StudentProfileState extends State<StudentProfile> {
 
   Future<void> fetchUserProfile() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/user/${widget.userId}'));
+      final prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString("token");
+
+      if (token == null) {
+        throw Exception('No JWT token found. Please login again.');
+      }
+
+      final res = await http.get(
+        Uri.parse('$baseUrl/user/${widget.userId}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
       if (res.statusCode == 200) {
         setState(() {
           userData = json.decode(res.body);
         });
+      } else if (res.statusCode == 401) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
       } else {
         print('❌ Error fetching user: ${res.body}');
       }
@@ -80,14 +100,26 @@ class _StudentProfileState extends State<StudentProfile> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: Column(
             children: const [
-              Icon(Icons.warning_amber_rounded, color: Color(0xFF8B1A1A), size: 50),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFF8B1A1A),
+                size: 50,
+              ),
               SizedBox(height: 10),
-              Text("Are you sure to Logout?",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF8B1A1A)),
-                  textAlign: TextAlign.center),
+              Text(
+                "Are you sure to Logout?",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF8B1A1A),
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
           actionsAlignment: MainAxisAlignment.center,
@@ -95,20 +127,34 @@ class _StudentProfileState extends State<StudentProfile> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
               },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B1A1A),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
+                backgroundColor: const Color(0xFF8B1A1A),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+              ),
               child: const Text("Sure", style: TextStyle(color: Colors.white)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFF8B1A1A)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
-              child: const Text("Cancel", style: TextStyle(color: Color(0xFF8B1A1A))),
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF8B1A1A)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+              ),
+              child: const Text(
+                "Cancel",
+                style: TextStyle(color: Color(0xFF8B1A1A)),
+              ),
             ),
           ],
         );
@@ -145,7 +191,6 @@ class _StudentProfileState extends State<StudentProfile> {
             ),
             const SizedBox(height: 20),
 
-            // 📋 กล่องข้อมูล
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -180,7 +225,10 @@ class _StudentProfileState extends State<StudentProfile> {
                           const SizedBox(height: 4),
                           Text(
                             "Email : ${userData!['email'] ?? '-'}",
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black87,
+                            ),
                           ),
                         ],
                       ),
@@ -199,11 +247,17 @@ class _StudentProfileState extends State<StudentProfile> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: roleColor,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                   child: const Text(
                     "Log out",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),

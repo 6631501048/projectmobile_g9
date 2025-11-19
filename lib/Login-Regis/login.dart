@@ -5,11 +5,11 @@ import 'Register.dart';
 import 'package:projectmobile_g9/Student/studenthome.dart';
 import 'package:projectmobile_g9/Staff/staffhome.dart';
 import 'package:projectmobile_g9/lect/lec.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -23,7 +23,6 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscure = true;
   bool isLoading = false;
 
-  // 🔹 ฟังก์ชันเรียก API /login
   Future<void> loginUser() async {
     if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -37,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('$baseUrl/login');
+      final url = Uri.parse('$baseUrl/login'); 
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -52,17 +51,15 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // ✅ ตรวจว่ามี error message จาก backend ไหม
-        if (data['error'] != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(data['error'])));
-          return;
-        }
-
+        final token = data['token'];
         final role = data['role'];
         final username = data['username'];
         final userId = data['id'];
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("token", token);
+        await prefs.setInt("userId", userId);
+        await prefs.setString("role", role);
 
         ScaffoldMessenger.of(
           context,
@@ -85,7 +82,6 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else {
-        // ❌ ถ้า statusCode ไม่ใช่ 200
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Invalid username or password')));
