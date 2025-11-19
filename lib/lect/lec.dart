@@ -5,6 +5,7 @@ import 'package:projectmobile_g9/lect/lectprofile.dart';
 import 'package:projectmobile_g9/lect/lecturer_dashboard_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
@@ -183,8 +184,17 @@ class _BookGridSectionState extends State<_BookGridSection> {
   }
 
   Future<void> fetchBooks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/books'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/books'),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
       if (res.statusCode == 200) {
         setState(() {
           books = json.decode(res.body);

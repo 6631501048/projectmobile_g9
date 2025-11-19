@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:projectmobile_g9/Login-Regis/login.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
@@ -19,8 +20,17 @@ class _StaffHistoryState extends State<StaffHistory> {
   bool isLoading = true;
 
   Future<void> fetchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/staff/history'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/staff/history'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       if (res.statusCode == 200) {
         setState(() {
           borrowHistory = json.decode(res.body);

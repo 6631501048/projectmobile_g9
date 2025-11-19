@@ -55,6 +55,23 @@ function verifyUser(req, res, next) {
   }
 }
 
+function verifyStaff(req, res, next) {
+  let role = req.decoded.role;
+
+  // อนุญาตทั้ง ADMIN และ LECTURER
+  if (role !== 'admin' && role !== 'lecturer') {
+    return res.status(403).json({ message: "Admins or Lecturers only" });
+  }
+  next();
+}
+
+function verifyAdmin(req, res, next) {
+  if (req.decoded.role !== 'admin') {
+    return res.status(403).json({ message: "Admins only" });
+  }
+  next();
+}
+
 // 🔹 API: Register
 app.post("/register", (req, res) => {
   const { username, email, password } = req.body;
@@ -356,29 +373,34 @@ app.get('/unreturned/:userId', verifyUser, (req, res) => {
 
 // ===================== STAFF =====================
 // ---------------- ADD NEW BOOK ----------------
-app.post('/books/add', verifyUser,(req, res) => {
+app.post('/books/add', verifyUser, verifyAdmin, (req, res) => {
   const { title, author, description, image, status } = req.body;
+  console.log('📥 /books/add body:', req.body);
+
   if (!title) return res.status(400).json({ message: 'Title is required' });
 
   const sql = `
     INSERT INTO books (title, author, description, image, STATUS)
     VALUES (?, ?, ?, ?, ?)
   `;
+  const finalImage = image && image.trim() !== '' ? image : 'default.png';
+
   db.query(
     sql,
-    [title, author, description, image || 'default.png', status || 'available'],
+    [title, author, description, finalImage, status || 'available'],
     (err, result) => {
       if (err) {
         console.error('❌ Error adding book:', err);
-        return res.status(500).json({ message: 'Failed to add book' });
+        return res.status(500).json({ message: 'Failed to add book', error: err });
       }
       res.json({ message: 'Book added successfully', id: result.insertId });
     }
   );
 });
 
+
 // ---------------- UPDATE BOOK ----------------
-app.put('/books/:id', verifyUser,(req, res) => {
+app.put('/books/:id', verifyUser, verifyAdmin,(req, res) => {
   const { id } = req.params;
   const { title, author, description, status } = req.body;
   const sql = `
@@ -396,7 +418,7 @@ app.put('/books/:id', verifyUser,(req, res) => {
 });
 
 // ---------------- DELETE BOOK ----------------
-app.delete('/books/:id', verifyUser,(req, res) => {
+app.delete('/books/:id', verifyUser, verifyAdmin,(req, res) => {
   const { id } = req.params;
   const sql = 'DELETE FROM books WHERE id = ?';
   db.query(sql, [id], (err, result) => {
@@ -411,7 +433,7 @@ app.delete('/books/:id', verifyUser,(req, res) => {
 });
 
 // ✅ Approve borrow request (for staff/admin)
-app.put('/approve/:id', verifyUser,(req, res) => {
+app.put('/approve/:id', verifyUser, verifyStaff,(req, res) => {
   const borrowId = req.params.id;
   const approverId = req.body.approverId || null; // optional
 
@@ -456,7 +478,7 @@ app.put('/approve/:id', verifyUser,(req, res) => {
 });
 
 // ✅ patch status
-app.patch('/books/:id/status', verifyUser,(req, res) => {
+app.patch('/books/:id/status', verifyUser, verifyStaff, verifyAdmin,(req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const sql = 'UPDATE books SET STATUS = ? WHERE id = ?';
@@ -467,7 +489,7 @@ app.patch('/books/:id/status', verifyUser,(req, res) => {
 });
 
 // ✅ API: Dashboard summary
-app.get("/api/dashboard/summary", verifyUser,(req, res) => {
+app.get("/api/dashboard/summary", verifyUser, verifyStaff,(req, res) => {
   const sql = `
     SELECT 
       SUM(CASE WHEN STATUS = 'available' THEN 1 ELSE 0 END) AS available,
@@ -498,7 +520,7 @@ app.get("/api/dashboard/summary", verifyUser,(req, res) => {
 });
 
 // ✅ API: Staff Borrow History (ดูทุกการยืมคืน)
-app.get('/api/staff/history', verifyUser,(req, res) => {
+app.get('/api/staff/history', verifyUser, verifyStaff,(req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -547,7 +569,7 @@ app.get('/api/staff/history', verifyUser,(req, res) => {
 });
 
 // ---------------- STAFF GET RETURN LIST ----------------
-app.get('/api/staff/getreturn', verifyUser,(req, res) => {
+app.get('/api/staff/getreturn', verifyUser,verifyStaff,(req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -585,7 +607,7 @@ app.get('/api/staff/getreturn', verifyUser,(req, res) => {
 
 
 // ---------------- STAFF CONFIRM RETURN ----------------
-app.put('/api/staff/return/:id', verifyUser,(req, res) => {
+app.put('/api/staff/return/:id', verifyUser,verifyStaff,(req, res) => {
   const { id } = req.params;
   const staffId = req.body.received_by || null;
 
@@ -618,7 +640,7 @@ app.put('/api/staff/return/:id', verifyUser,(req, res) => {
 });
 
 // ================= STAFF REJECT BORROW REQUEST =================
-app.put('/api/staff/reject/:id', verifyUser,(req, res) => {
+app.put('/api/staff/reject/:id', verifyUser, verifyStaff,(req, res) => {
   const borrowId = req.params.id;
   const { reject_reason, approverId } = req.body;
 
@@ -680,7 +702,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ✅ endpoint อัปโหลด
-app.post('/upload', upload.single('image'), verifyUser,(req, res) => {
+app.post('/upload', upload.single('image'), verifyUser, verifyStaff, verifyAdmin,(req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:projectmobile_g9/Login-Regis/login.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
@@ -33,8 +34,17 @@ class _ReturnbookState extends State<Returnbook> {
       isLoading = true;
       hasError = false;
     });
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/staff/getreturn'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/staff/getreturn'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
@@ -54,11 +64,17 @@ class _ReturnbookState extends State<Returnbook> {
   }
 
   Future<void> confirmReturn(int borrowId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/api/staff/return/$borrowId'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'received_by': 1}),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'received_by': prefs.getInt("userId")}),
       );
 
       if (res.statusCode == 200) {

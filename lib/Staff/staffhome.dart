@@ -7,11 +7,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projectmobile_g9/Login-Regis/login.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const StaffBookStoreApp());
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
+
 String fixImage(String? img) {
   if (img == null || img.isEmpty) {
     return '$baseUrl/uploads/default.png';
@@ -146,8 +148,20 @@ class _BookGridSectionState extends State<_BookGridSection> {
   }
 
   Future<void> fetchBooks() async {
+    setState(() => isLoading = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/books'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/books'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
       if (res.statusCode == 200) {
         final List data = json.decode(res.body);
         setState(() {

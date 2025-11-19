@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
@@ -20,9 +21,20 @@ class _LecthistoryState extends State<Lecthistory> {
 
   // ✅ ดึงข้อมูลจาก API
   Future<void> fetchHistory() async {
-    setState(() => isLoading = true); // แสดงโหลดก่อนรีเฟรช
+    setState(() => isLoading = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/staff/history'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/staff/history'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
       if (res.statusCode == 200) {
         setState(() {
           borrowHistory = json.decode(res.body);

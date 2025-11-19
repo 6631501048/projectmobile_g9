@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 XFile? _pickedImage;
 String? _uploadedFileName;
 
@@ -24,7 +26,7 @@ class _StaffManageState extends State<StaffManage> {
   bool showFilter = false;
   bool showAddBook = false;
   int _selectedIndex = 2;
-  String selectedStatus = 'Available';
+  String selectedStatus = 'available';
   bool showEditBook = false;
   String? selectedFilter;
 
@@ -63,8 +65,17 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   Future<void> fetchBooks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     try {
-      final res = await http.get(Uri.parse('$baseUrl/books'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/books'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       if (res.statusCode == 200) {
         setState(() {
           books = json.decode(res.body);
@@ -79,36 +90,67 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   Future<void> addBook() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     final book = {
       'title': titleController.text,
       'author': authorController.text,
-      'category': 'Novel',
       'description': detailController.text,
       'status': selectedStatus.toLowerCase(),
-      'image': _uploadedFileName,
+      'image': _uploadedFileName ?? 'default.png',
     };
-    final res = await http.post(
-      Uri.parse('$baseUrl/books/add'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(book),
-    );
-    if (res.statusCode == 200) {
-      await fetchBooks();
+
+    print('📚 AddBook sending: $book');
+
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/books/add'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(book),
+      );
+
+      print('📚 AddBook status: ${res.statusCode}');
+      print('📚 AddBook body: ${res.body}');
+
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Book added')));
+        await fetchBooks();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Add failed: ${res.body}')));
+      }
+    } catch (e) {
+      print('❌ addBook error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   Future<void> updateBook(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     final book = {
       'title': titleController.text,
       'author': authorController.text,
-      'category': 'Novel',
       'description': detailController.text,
       'status': selectedStatus.toLowerCase(),
       'image': _uploadedFileName ?? editingBook?['image'],
     };
     final res = await http.put(
       Uri.parse('$baseUrl/books/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
       body: json.encode(book),
     );
     if (res.statusCode == 200) {
@@ -117,7 +159,12 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   Future<void> deleteBook(int id) async {
-    final res = await http.delete(Uri.parse('$baseUrl/books/$id'));
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+    final res = await http.delete(
+      Uri.parse('$baseUrl/books/$id'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
     if (res.statusCode == 200) {
       await fetchBooks();
     }
@@ -144,39 +191,53 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   // เมื่อกด Save
-  void _saveBook({bool isEdit = false}) async {
-    if (titleController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please fill in the title')));
+Future<void> _saveBook({bool isEdit = false}) async {
+  if (titleController.text.isEmpty) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Please fill in the title')));
+    return;
+  }
+
+  if (isEdit) {
+    // -------- EDIT MODE --------
+    if (editingBook == null) return;
+
+    final int id = (editingBook!['id'] as num).toInt();
+
+    // ถ้ามีรูปใหม่ → ใช้รูปใหม่
+    if (_pickedImage != null && _uploadedFileName != null) {
+      editingBook!['image'] = _uploadedFileName;
+    }
+
+    await updateBook(id);
+    await fetchBooks();
+  } else {
+    // -------- ADD MODE --------
+    
+    // ถ้าเลือกภาพแต่ยังไม่อัปโหลดสำเร็จ
+    if (_pickedImage != null && _uploadedFileName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please wait for image upload")),
+      );
       return;
     }
 
-    if (isEdit && editingBook != null) {
-      // ✅ แปลง id ให้เป็น int เสมอ (กันกรณีเป็น num/dynamic)
-      final int id = (editingBook!['id'] as num).toInt();
-      if (_pickedImage != null && _uploadedFileName != null) {
-        editingBook!['image'] = _uploadedFileName;
-      }
-      await updateBook(id);
-      await fetchBooks();
-      setState(() {
-        filteredBooks = books;
-      });
-    } else {
-      await addBook();
-    }
-
-    setState(() {
-      showAddBook = false;
-      showEditBook = false;
-      titleController.clear();
-      authorController.clear();
-      detailController.clear();
-      _pickedImage = null;
-      _uploadedFileName = null;
-    });
+    await addBook(); // เพิ่มหนังสือใหม่
+    await fetchBooks();
   }
+
+  // -------- RESET FORM --------
+  setState(() {
+    titleController.clear();
+    authorController.clear();
+    detailController.clear();
+    selectedStatus = 'available';
+    _pickedImage = null;
+    _uploadedFileName = null;
+    showAddBook = false;
+    showEditBook = false;
+  });
+}
 
   // เมื่อกด Disable
   void _disableBook(int index) {
@@ -186,10 +247,15 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   Future<void> patchBookStatus(int id, String status) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
     final res = await http.patch(
       Uri.parse('$baseUrl/books/$id/status'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'status': status.toLowerCase()}),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({'status': status}),
     );
     if (res.statusCode == 200) {
       await fetchBooks();
@@ -212,8 +278,13 @@ class _StaffManageState extends State<StaffManage> {
   }
 
   Future<void> _uploadImage(XFile img) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
+
     final url = Uri.parse('$baseUrl/upload');
-    final req = http.MultipartRequest('POST', url);
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload'));
+    req.headers['Authorization'] = 'Bearer $token';
+    req.headers['Content-Type'] = 'multipart/form-data';
     req.files.add(
       await http.MultipartFile.fromPath(
         'image',
@@ -259,12 +330,11 @@ class _StaffManageState extends State<StaffManage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              setState(() {
-                books.removeAt(index);
-                showAddBook = false;
-              });
+            onPressed: () async {
+              final int id = (filteredBooks[index]['id'] as num).toInt();
+
               Navigator.pop(context);
+              await deleteBook(id);
             },
             child: const Text('Delete'),
           ),
@@ -591,9 +661,8 @@ class _StaffManageState extends State<StaffManage> {
                                             minimumSize: const Size(70, 32),
                                           ),
                                           onPressed: () async {
-                                            final int id =
-                                                (books[index]['id'] as num)
-                                                    .toInt();
+                                            final int id = (book['id'] as num)
+                                                .toInt();
                                             await patchBookStatus(
                                               id,
                                               'disabled',
@@ -1123,28 +1192,28 @@ class _StaffManageState extends State<StaffManage> {
                                 children: [
                                   RadioListTile<String>(
                                     title: const Text('Available'),
-                                    value: 'Available',
+                                    value: 'available',
                                     groupValue: selectedStatus,
                                     onChanged: (value) =>
                                         setState(() => selectedStatus = value!),
                                   ),
                                   RadioListTile<String>(
                                     title: const Text('Borrowed'),
-                                    value: 'Borrowed',
+                                    value: 'borrowed',
                                     groupValue: selectedStatus,
                                     onChanged: (value) =>
                                         setState(() => selectedStatus = value!),
                                   ),
                                   RadioListTile<String>(
                                     title: const Text('Pending'),
-                                    value: 'Pending',
+                                    value: 'pending',
                                     groupValue: selectedStatus,
                                     onChanged: (value) =>
                                         setState(() => selectedStatus = value!),
                                   ),
                                   RadioListTile<String>(
                                     title: const Text('Disable'),
-                                    value: 'Disabled',
+                                    value: 'disabled',
                                     groupValue: selectedStatus,
                                     onChanged: (value) =>
                                         setState(() => selectedStatus = value!),
@@ -1179,18 +1248,8 @@ class _StaffManageState extends State<StaffManage> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.brown[700],
                                     ),
-                                    onPressed: () {
-                                      _saveBook();
-                                      // ✅ เคลียร์ฟอร์มเมื่อกด save
-                                      setState(() {
-                                        titleController.clear();
-                                        authorController.clear();
-                                        detailController.clear();
-                                        selectedStatus = 'Available';
-                                        showAddBook = false;
-                                        _pickedImage = null;
-                                        _uploadedFileName = null;
-                                      });
+                                    onPressed: () async {
+                                      await _saveBook();
                                     },
                                     child: const Text(
                                       'Save',
@@ -1208,7 +1267,7 @@ class _StaffManageState extends State<StaffManage> {
                                         titleController.clear();
                                         authorController.clear();
                                         detailController.clear();
-                                        selectedStatus = 'Available';
+                                        selectedStatus = 'available';
                                       });
                                     },
                                     child: const Text(

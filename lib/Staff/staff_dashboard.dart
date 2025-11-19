@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projectmobile_g9/Login-Regis/login.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 String get baseUrl => dotenv.env['BASE_URL'] ?? '';
 String get imageUrl => dotenv.env['IMAGE_URL'] ?? '';
@@ -23,9 +24,17 @@ class _LectdashState extends State<StaffDash> {
   bool isLoading = true;
 
   Future<void> fetchSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token") ?? "";
     try {
       print('🌐 Fetching summary...');
-      final res = await http.get(Uri.parse('$baseUrl/api/dashboard/summary'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/dashboard/summary'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       print('📦 Response: ${res.statusCode}');
       print('📦 Body: ${res.body}');
       if (res.statusCode == 200) {
@@ -57,7 +66,9 @@ class _LectdashState extends State<StaffDash> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF8B1A1A))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF8B1A1A)),
+        ),
       );
     }
 
@@ -104,14 +115,19 @@ class _LectdashState extends State<StaffDash> {
                     // 🚪 ปุ่ม Logout
                     ListTile(
                       leading: const Icon(Icons.logout, color: Colors.red),
-                      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.red),
+                      ),
                       onTap: () {
                         Navigator.pop(ctx);
                         showDialog(
                           context: context,
                           builder: (_) => AlertDialog(
                             title: const Text('Confirm Logout'),
-                            content: const Text('Are you sure you want to log out?'),
+                            content: const Text(
+                              'Are you sure you want to log out?',
+                            ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
@@ -119,18 +135,29 @@ class _LectdashState extends State<StaffDash> {
                               ),
                               TextButton(
                                 onPressed: () {
-                                  Navigator.of(context, rootNavigator: true).pop();
-                                  Future.delayed(const Duration(milliseconds: 150), () {
-                                    Navigator.of(context, rootNavigator: true)
-                                        .pushAndRemoveUntil(
-                                      MaterialPageRoute(
-                                        builder: (_) => const LoginPage(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  });
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pop();
+                                  Future.delayed(
+                                    const Duration(milliseconds: 150),
+                                    () {
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                          builder: (_) => const LoginPage(),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    },
+                                  );
                                 },
-                                child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
                             ],
                           ),
@@ -152,16 +179,32 @@ class _LectdashState extends State<StaffDash> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                StatusCard(color: Colors.blue, title: 'Borrowed', count: borrowed),
-                StatusCard(color: Colors.green, title: 'Available', count: available),
+                StatusCard(
+                  color: Colors.blue,
+                  title: 'Borrowed',
+                  count: borrowed,
+                ),
+                StatusCard(
+                  color: Colors.green,
+                  title: 'Available',
+                  count: available,
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                StatusCard(color: Colors.orange, title: 'Pending', count: pending),
-                StatusCard(color: Colors.red, title: 'Disabled', count: disabled),
+                StatusCard(
+                  color: Colors.orange,
+                  title: 'Pending',
+                  count: pending,
+                ),
+                StatusCard(
+                  color: Colors.red,
+                  title: 'Disabled',
+                  count: disabled,
+                ),
               ],
             ),
             const SizedBox(height: 32),
@@ -223,10 +266,18 @@ class StatusCard extends StatelessWidget {
         children: [
           Text(
             '$count',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(title, textAlign: TextAlign.center, style: TextStyle(color: color)),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: color),
+          ),
         ],
       ),
     );

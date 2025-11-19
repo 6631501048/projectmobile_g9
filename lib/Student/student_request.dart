@@ -919,7 +919,7 @@ class _RequestPageState extends State<RequestPage> {
 }
 
 class ApiClient {
-  static const String _baseUrl = 'baseUrl';
+  static String get _baseUrl => baseUrl;
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
