@@ -186,58 +186,61 @@ class _StaffManageState extends State<StaffManage> {
       selectedStatus = (book['status'] ?? 'available').toString().toLowerCase();
       _uploadedFileName = book['image'];
       _pickedImage = null;
+      selectedStatus = (book['status'] ?? 'available').toString().toLowerCase();
+
       showEditBook = true;
     });
   }
 
   // เมื่อกด Save
-Future<void> _saveBook({bool isEdit = false}) async {
-  if (titleController.text.isEmpty) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Please fill in the title')));
-    return;
-  }
-
-  if (isEdit) {
-    // -------- EDIT MODE --------
-    if (editingBook == null) return;
-
-    final int id = (editingBook!['id'] as num).toInt();
-
-    // ถ้ามีรูปใหม่ → ใช้รูปใหม่
-    if (_pickedImage != null && _uploadedFileName != null) {
-      editingBook!['image'] = _uploadedFileName;
-    }
-
-    await updateBook(id);
-    await fetchBooks();
-  } else {
-    // -------- ADD MODE --------
-    
-    // ถ้าเลือกภาพแต่ยังไม่อัปโหลดสำเร็จ
-    if (_pickedImage != null && _uploadedFileName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please wait for image upload")),
-      );
+  Future<void> _saveBook({bool isEdit = false}) async {
+    if (titleController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill in the title')));
       return;
     }
 
-    await addBook(); // เพิ่มหนังสือใหม่
-    await fetchBooks();
-  }
+    if (isEdit) {
+      // -------- EDIT MODE --------
+      if (editingBook == null) return;
 
-  // -------- RESET FORM --------
-  setState(() {
-    titleController.clear();
-    authorController.clear();
-    detailController.clear();
-    selectedStatus = 'available';
-    _pickedImage = null;
-    _uploadedFileName = null;
-    showAddBook = false;
-    showEditBook = false;
-  });
-}
+      final int id = (editingBook!['id'] as num).toInt();
+
+      // ถ้ามีรูปใหม่ → ใช้รูปใหม่
+      if (_pickedImage != null && _uploadedFileName != null) {
+        editingBook!['image'] = _uploadedFileName;
+      }
+
+      await updateBook(id);
+      await fetchBooks();
+    } else {
+      // -------- ADD MODE --------
+
+      // ถ้าเลือกภาพแต่ยังไม่อัปโหลดสำเร็จ
+      if (_pickedImage != null && _uploadedFileName == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please wait for image upload")),
+        );
+        return;
+      }
+
+      await addBook(); // เพิ่มหนังสือใหม่
+      await fetchBooks();
+    }
+
+    // -------- RESET FORM --------
+    setState(() {
+      titleController.clear();
+      authorController.clear();
+      detailController.clear();
+      selectedStatus = 'available';
+      _pickedImage = null;
+      _uploadedFileName = null;
+      showAddBook = false;
+      showEditBook = false;
+    });
+  }
 
   // เมื่อกด Disable
   void _disableBook(int index) {
@@ -298,8 +301,15 @@ Future<void> _saveBook({bool isEdit = false}) async {
     final body = await res.stream.bytesToString();
     if (res.statusCode == 200) {
       final data = json.decode(body);
-      setState(() => _uploadedFileName = data['filename']);
-      print('✅ Uploaded file: $_uploadedFileName'); // <-- เพิ่มบรรทัดนี้
+      setState(() {
+        _uploadedFileName = data['filename'];
+
+        // 🔥 บังคับให้ editingBook อัปเดตรูปใหม่ด้วย
+        if (editingBook != null) {
+          editingBook!['image'] = _uploadedFileName;
+        }
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Image uploaded successfully')),
       );

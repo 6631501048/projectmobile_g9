@@ -400,15 +400,15 @@ app.post('/books/add', verifyUser, verifyAdmin, (req, res) => {
 
 
 // ---------------- UPDATE BOOK ----------------
-app.put('/books/:id', verifyUser, verifyAdmin,(req, res) => {
+app.put('/books/:id', verifyUser, verifyAdmin, (req, res) => {
   const { id } = req.params;
   const { title, author, description, status } = req.body;
-  const sql = `
-    UPDATE books
-    SET title = ?, author = ?, description = ?, STATUS = ?
-    WHERE id = ?
-  `;
-  db.query(sql, [title, author, description, status, id], (err) => {
+  const image = req.body.image || 'default.png';
+
+  const sql =
+    "UPDATE books SET title = ?, author = ?, description = ?, STATUS = ?, image = ? WHERE id = ?";
+
+  db.query(sql, [title, author, description, status, image, id], (err) => {
     if (err) {
       console.error('❌ Error updating book:', err);
       return res.status(500).json({ message: 'Update failed' });
@@ -418,7 +418,7 @@ app.put('/books/:id', verifyUser, verifyAdmin,(req, res) => {
 });
 
 // ---------------- DELETE BOOK ----------------
-app.delete('/books/:id', verifyUser, verifyAdmin,(req, res) => {
+app.delete('/books/:id', verifyUser, verifyAdmin, (req, res) => {
   const { id } = req.params;
   const sql = 'DELETE FROM books WHERE id = ?';
   db.query(sql, [id], (err, result) => {
@@ -433,7 +433,7 @@ app.delete('/books/:id', verifyUser, verifyAdmin,(req, res) => {
 });
 
 // ✅ Approve borrow request (for staff/admin)
-app.put('/approve/:id', verifyUser, verifyStaff,(req, res) => {
+app.put('/approve/:id', verifyUser, verifyStaff, (req, res) => {
   const borrowId = req.params.id;
   const approverId = req.body.approverId || null; // optional
 
@@ -478,7 +478,7 @@ app.put('/approve/:id', verifyUser, verifyStaff,(req, res) => {
 });
 
 // ✅ patch status
-app.patch('/books/:id/status', verifyUser, verifyStaff, verifyAdmin,(req, res) => {
+app.patch('/books/:id/status', verifyUser, verifyStaff, verifyAdmin, (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const sql = 'UPDATE books SET STATUS = ? WHERE id = ?';
@@ -489,7 +489,7 @@ app.patch('/books/:id/status', verifyUser, verifyStaff, verifyAdmin,(req, res) =
 });
 
 // ✅ API: Dashboard summary
-app.get("/api/dashboard/summary", verifyUser, verifyStaff,(req, res) => {
+app.get("/api/dashboard/summary", verifyUser, verifyStaff, (req, res) => {
   const sql = `
     SELECT 
       SUM(CASE WHEN STATUS = 'available' THEN 1 ELSE 0 END) AS available,
@@ -520,7 +520,7 @@ app.get("/api/dashboard/summary", verifyUser, verifyStaff,(req, res) => {
 });
 
 // ✅ API: Staff Borrow History (ดูทุกการยืมคืน)
-app.get('/api/staff/history', verifyUser, verifyStaff,(req, res) => {
+app.get('/api/staff/history', verifyUser, verifyStaff, (req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -569,7 +569,7 @@ app.get('/api/staff/history', verifyUser, verifyStaff,(req, res) => {
 });
 
 // ---------------- STAFF GET RETURN LIST ----------------
-app.get('/api/staff/getreturn', verifyUser,verifyStaff,(req, res) => {
+app.get('/api/staff/getreturn', verifyUser, verifyStaff, (req, res) => {
   const sql = `
     SELECT 
       br.id AS borrow_id,
@@ -607,7 +607,7 @@ app.get('/api/staff/getreturn', verifyUser,verifyStaff,(req, res) => {
 
 
 // ---------------- STAFF CONFIRM RETURN ----------------
-app.put('/api/staff/return/:id', verifyUser,verifyStaff,(req, res) => {
+app.put('/api/staff/return/:id', verifyUser, verifyStaff, (req, res) => {
   const { id } = req.params;
   const staffId = req.body.received_by || null;
 
@@ -640,7 +640,7 @@ app.put('/api/staff/return/:id', verifyUser,verifyStaff,(req, res) => {
 });
 
 // ================= STAFF REJECT BORROW REQUEST =================
-app.put('/api/staff/reject/:id', verifyUser, verifyStaff,(req, res) => {
+app.put('/api/staff/reject/:id', verifyUser, verifyStaff, (req, res) => {
   const borrowId = req.params.id;
   const { reject_reason, approverId } = req.body;
 
@@ -702,7 +702,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ✅ endpoint อัปโหลด
-app.post('/upload', upload.single('image'), verifyUser, verifyStaff, verifyAdmin,(req, res) => {
+app.post('/upload', verifyUser, verifyAdmin, upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }
